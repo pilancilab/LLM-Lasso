@@ -1,11 +1,31 @@
 import numpy as np
 import pandas as pd
-from LLasso.helper import balanced_folds
 import os
 import json
-import rpy2.robjects as ro
-from sklearn.preprocessing import StandardScaler
-import pickle
+
+
+# Helper function to create balanced folds
+def balanced_folds(y, nfolds=None):
+    totals = np.bincount(y)
+    fmax = np.max(totals)
+    if nfolds is None:
+        nfolds = min(min(np.bincount(y)), 10)
+    nfolds = max(min(nfolds, fmax), 2)
+
+    # Group indices by class
+    y_groups = {label: np.where(y == label)[0] for label in np.unique(y)}
+
+    # Shuffle indices within each class
+    for label in y_groups:
+        np.random.shuffle(y_groups[label])
+
+    # Distribute indices into folds
+    folds = [[] for _ in range(nfolds)]
+    for label, indices in y_groups.items():
+        for i, idx in enumerate(indices):
+            folds[i % nfolds].append(idx)
+
+    return [np.array(fold) for fold in folds]
 
 
 def save_train_test_splits(X: pd.DataFrame, y: pd.Series, save_dir: str, n_splits=10, seed=0):
@@ -41,6 +61,7 @@ def read_train_test_splits(dir: str, n_splits):
 
     return x_train, x_test, y_train, y_test
 
+
 def read_baseline_splits(dir: str, key="160", n_splits=10):
     feature_baseline = {}
     with open(f'{dir}/split0/selected_features.json') as f:
@@ -55,35 +76,3 @@ def read_baseline_splits(dir: str, key="160", n_splits=10):
             feature_baseline[x].append(data[x][key])
 
     return feature_baseline
-
-
-def read_baseline_splits_old(dir: str, task: str, key="160"):
-    feature_baseline = {}
-    with open(f'{dir}/split1/{task}_split1/selected_features.json') as f:
-        data = json.load(f)
-    for x in data.keys():
-        feature_baseline[x] = [data[x][key]]
-
-    for i in range(2, 11):
-        with open(f'{dir}/split{i}/{task}_split{i}/selected_features.json') as f:
-            data = json.load(f)
-        for x in data.keys():
-            feature_baseline[x].append(data[x][key])
-
-    return feature_baseline
-
-
-def read_csv_splits(dir: str, n_splits: int, names):
-    x_train = []
-    x_test = []
-    y_train = []
-    y_test = []
-
-    for i in range(n_splits):
-        x_train.append(pd.read_csv(f"{dir}/x_train{i+1}", names=names))
-        x_test.append(pd.read_csv(f"{dir}/x_test{i+1}.csv", names=names))
-        y_train.append(pd.read_csv(f"{dir}/y_train{i+1}", header=None)[0])
-        y_test.append(pd.read_csv(f"{dir}/y_test{i+1}.csv", header=None)[0])
-    return x_train, x_test, y_train, y_test
-
-
