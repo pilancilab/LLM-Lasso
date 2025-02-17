@@ -1,4 +1,7 @@
-# from langchain_community.chat_models import ChatOpenAI
+"""
+This script offers the main function to process retrieved RAG documents using features provided in omim_RAG_process.py and pubMed_RAG_process.py.
+"""
+
 from Expert_RAG.utils import *
 from Expert_RAG.helper import *
 import time

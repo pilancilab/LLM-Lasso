@@ -1,12 +1,15 @@
 """
-Process PubMed RAG retrieval results through Langchain's PubMed tool.
+Process PubMed RAG retrieval results through Langchain's PubMed tool focusing on retrieving:
+(1). Information about each gene concerned;
+(2). Information of the phenotype concerned in the domain of its known relation with certain genes;
+(3). Interaction between each gene and each phenotype concerned.
 """
 import os
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
 from langchain_openai import ChatOpenAI
 from langchain.docstore.document import Document
 from langchain.schema import SystemMessage, HumanMessage
-from Expert_RAG.utils import *
+from utils.score_collection import *
 from openai import OpenAI
 import time
 from langchain_core.rate_limiters import InMemoryRateLimiter
@@ -22,10 +25,8 @@ os.environ["OPENAI_API_KEY"] = "YOUR API KEY HERE"  # Set OpenAI API key
 client = OpenAI()
 llm = ChatOpenAI(model="gpt-4o", temperature=0.5, rate_limiter=rate_limiter)
 tool = PubmedQueryRun()
-#ret_prompt = "prompts/pubmed_retrieval_prompt_cat.txt"
-#sum_prompt = "prompts/pubmed_summary_prompt_cat.txt"
 
-# Helpers
+################################## Helper Functions ##################################
 def parse_category_strings(input_string):
     """
     Parses a string containing two category names connected by 'and' into two separate strings.
@@ -53,8 +54,6 @@ def get_pubmed_prompts():
         dir = f"prompts/pubmed_summary_prompt_{item}.txt"
         all_s.append(dir)
     return all_r, all_s
-
-
 
 def pubmed_retrieval_filter(text):
     """
@@ -111,6 +110,8 @@ def summarize_retrieval(gene, cat, ret, model, sum_prompt):
             print("Model must either be 'gpt-4o' or 'o1'.")
             sys.exit(-1)
     return ret
+
+#################################### Main Function ##################################
 
 # now assume binary classification - can extend to k class.
 # collective retrieval function over three combinations: complexity = k+kg+g
@@ -180,9 +181,6 @@ def pubmed_retrieval(
 
     # Return a joined string of all non-empty summaries
     return "\n\n".join(t for t in s if t)
-
-# store pubmed retrieval in a hashmap to avoid duplication.
-
 
 
 # Example usage

@@ -1,5 +1,12 @@
+"""
+This script offers two additional features to process the retrieval information from OMIM in the RAG pipeline:
+(1). Optional summarization of the retrieved documents.
+(2). Filtering of the retrieved documents based on the presence of gene names.
+"""
+
 import pickle as pkl
-from omim_scrape.parse_omim import get_mim_number, fetch_omim_data, parse_omim_response
+from omim_scrape.process_mimNumber import get_mim_number
+from omim_scrape.parse_omim import fetch_omim_data_with_key, parse_omim_response
 from langchain.schema import SystemMessage, HumanMessage
 import time
 import sys
