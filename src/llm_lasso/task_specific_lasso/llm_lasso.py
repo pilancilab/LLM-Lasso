@@ -1,9 +1,7 @@
-from llm_lasso.task_specific_lasso.helper import *
 from sklearn.linear_model import LogisticRegressionCV, LinearRegression
 from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error
 from sklearn.preprocessing import OneHotEncoder
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.interpolate import interp1d
 from adelie.cv import cv_grpnet

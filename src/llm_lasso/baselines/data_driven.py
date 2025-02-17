@@ -17,10 +17,10 @@ import pandas as pd
 from sklearn.feature_selection import mutual_info_regression, RFE
 from sklearn.linear_model import LogisticRegression
 import random
-from utils.data import load_feature_names
+from llm_lasso.utils.data import load_feature_names
 import pickle
 import json
-from task_specific_lasso.splits import read_train_test_splits
+from llm_lasso.data_splits import read_train_test_splits
 
 ################################# Helpers #######################################
 

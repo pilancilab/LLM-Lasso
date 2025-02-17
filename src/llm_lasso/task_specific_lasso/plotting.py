@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from llm_lasso.task_specific_lasso.gene_usage import get_top_genes_for_method
-import regex as re
+import re
 
 
 LASSO_COLOR = ["#999999"]
