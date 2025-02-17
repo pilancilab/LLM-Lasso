@@ -6,32 +6,59 @@ from langchain_community.vectorstores import Chroma
 from langchain.schema import HumanMessage, SystemMessage
 
 warnings.filterwarnings("ignore")  # Suppress warnings
-
 os.environ["OPENAI_API_KEY"] = "YOUR API KEY HERE"
 
-# File paths
-persist_directory = "DATABASE DIRECTORY"  # Path to combined vector store
+# Enable persistence to save the database to disk
+PERSIST = True
 
-# Initialize embeddings
+# File paths
+data_path = "DATA JSON PATH"
+persist_directory_base = "DATABASE PATH"
+persist_directory = persist_directory_base  # Directory for the vector store
+
+# Step 1: Load chunked data from both sources
+print("Loading chunked JSON data from both sources...")
+documents = []
+
+# Load scraped OMIM data
+with open(data_path, "r", encoding="utf-8") as f:
+    for line in f:
+        entry = json.loads(line)
+        documents.append(entry)
+
+print(f"Loaded {len(documents)} total chunks from omim database.")
+
+# Step 2: Initialize embeddings
 embeddings = OpenAIEmbeddings()
 
-# Step 1: Load vector store
-if os.path.exists(persist_directory):
+# Step 3: Create or load the OMIM-based vector store
+if PERSIST and os.path.exists(persist_directory):
     print("Reusing existing combined database...")
     vectorstore = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
 else:
-    raise FileNotFoundError(f"Vector store not found at {persist_directory}. Ensure the data is preprocessed and saved.")
+    print("Creating a new combined database...")
+    # Wrap each entry into a Document object
+    documents_wrapped = [
+        Document(page_content=doc['content'], metadata=doc['metadata']) for doc in documents
+    ]
+    vectorstore = Chroma.from_documents(
+        documents=documents_wrapped,  # Use the wrapped documents
+        embedding=embeddings,
+        persist_directory=persist_directory
+    )
+    if PERSIST:
+        vectorstore.persist()  # Save the combined database to disk
 
-# Step 2: Initialize retriever
+# Step 4: Initialize retriever
 retriever = vectorstore.as_retriever(search_kwargs={"k": 5})  # Retrieve top 5 documents for context
 
-# Step 3: Initialize LLM
+# Step 5: Initialize LLM
 llm = ChatOpenAI(model="gpt-4o")  # GPT model
 
-# Hybrid chain with fallback
+# Step 6: Define hybrid chain with fallback on pretrained knowledge
 def hybrid_chain(query, retriever, llm, chat_history, max_length=4000):
     """
-    Hybrid chain combining RAG with fallback to GPT general knowledge.
+    Hybrid chain combining RAG with fallback to pretrained knowledge.
 
     Parameters:
     - query: User query.
@@ -50,12 +77,11 @@ def hybrid_chain(query, retriever, llm, chat_history, max_length=4000):
         # Combine retrieved documents into context
         context = "\n".join([f"{doc.metadata['gene_name']}: {doc.page_content}" for doc in retrieved_docs])
         context = context[:max_length]  # Ensure the context is within LLM limits
-
         # print(context)
 
         # Create a prompt with retrieved context
         messages = [
-            SystemMessage(content="You are an expert assistant with access to gene and cancer knowledge."),
+            SystemMessage(content="You are an expert assistant in cancer genomics and bioinformatics."),
             HumanMessage(content=f"Using the following context, provide the most accurate and relevant answer to the question. "
 "Prioritize the provided context, but if the context does not contain enough information to fully address the question, "
 "use your best general knowledge to complete the answer:\n\n"
@@ -67,7 +93,7 @@ def hybrid_chain(query, retriever, llm, chat_history, max_length=4000):
     else:
         # Fallback to GPT's general knowledge
         messages = [
-            SystemMessage(content="You are an expert in cancer genomics and bioinformatics."),
+            SystemMessage(content="You are an expert assistant in cancer genomics and bioinformatics."),
             HumanMessage(content=f"Answer the following question based on your general knowledge:\n\nQuestion: {query}")
         ]
         response = llm(messages)  # Pass structured messages
@@ -75,7 +101,7 @@ def hybrid_chain(query, retriever, llm, chat_history, max_length=4000):
 
     return final_response
 
-# Step 4: Chat loop
+# Step 7: Chat loop
 chat_history = []
 print("Type 'quit', 'q', or 'exit' to end the chat.")
 
