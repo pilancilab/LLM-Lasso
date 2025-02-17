@@ -1,188 +1,64 @@
 """
-Pulls down OMIM data via HTTP request.
+Pulls down entire OMIM data in JSON format according to a complete list of valid MIM numbers via HTTP request with switching APIs and checkpoints for incremental saving.
 """
 
-__author__ = 'Erica Zhang'
-
+import os
+import json
+import time
 import requests
 import xml.etree.ElementTree as Tree
-from Expert_RAG import constants
 import pickle as pkl
 from tqdm import tqdm
-import time
 
-KEY = constants.OMIM_API
+# List of OMIM API keys
+API_KEYS = []
+REQUEST_LIMIT = 4000  # Maximum requests per API key
+key_index = 0  # Index of the current API key
+request_count = 0  # Track the number of requests for the current key
 
-# 1. Search for mim-number given a hgnc gene name
-def test_omim_api_access():
+
+def get_api_key():
     """
-    Test access to the OMIM API with a sample query.
+    Rotate to the next API key if the current key reaches its request limit.
     Returns:
-        bool: True if the test succeeds, False otherwise.
+        str: The current API key.
     """
-    url = "https://api.omim.org/api/entry/search"
-    # Query string for 'search' parameter manually constructed
-    search_query = "+ABHD6+gene"  # Example: use the exact query format required by OMIM
-
-    # Remaining parameters
-    params = {
-        "start": 0,
-        "sort": "score desc",
-        "limit": 1,
-        "apiKey": KEY,
-        "format": "xml",  # Ensure the response is in XML format
-    }
-
-    # Manually append the 'search' query to the URL
-    full_url = f"{url}?search={search_query}"
-
-    try:
-        # Send the GET request
-        response = requests.get(full_url, params=params)
-
-        # Check for HTTP success status
-        if response.status_code == 200:
-            print("Success! API is accessible.")
-            print("Response:\n", response.text[:50])  # Print a snippet of the response
-            return True
-        else:
-            print(f"Failed response URL:{response.url}")
-            print(f"Failed! Status code: {response.status_code}")
-            print("Response:\n", response.text[:50])  # Print a snippet of the response
-            return False
-    except requests.exceptions.RequestException as e:
-        print(f"Error accessing the API: {e}")
-        return False
+    global key_index, request_count
+    if request_count >= REQUEST_LIMIT:
+        key_index = (key_index + 1) % len(API_KEYS)
+        request_count = 0
+        print(f"Switching to API key {key_index + 1}")
+    return API_KEYS[key_index]
 
 
-def get_mim_number(gene, quiet=False): # works with cancer too
+def fetch_omim_data_with_key(mim_number):
     """
-    Query OMIM API to fetch the mimNumber for a given gene.
+    Fetch OMIM data using the current API key, switching keys when the limit is reached.
+    
     Args:
-        gene (str): hgnc gene name.
+        mim_number (str): The MIM number to fetch data for.
+    Returns:
+        str: The response text from the API, or None if an error occurs.
     """
-    base_url = "https://api.omim.org/api/entry/search"
-    # Query string for 'search' parameter manually constructed
-    search_query = f"{gene}"  # Use the exact query format required by OMIM; consider enhancement with f"+{gene}+gene"
-
-    # Remaining parameters
-    params = {
-        "start": 0,
-        "sort": "score desc",
-        "limit": 1,
-        "apiKey": KEY,
-        "format": "xml",  # Ensure the response is in XML format
-    }
-
-    # Manually append the 'search' query to the URL
-    full_url = f"{base_url}?search={search_query}"
-
-    try:
-        # Send the HTTP GET request
-        response = requests.get(full_url, params=params)
-        response.raise_for_status()
-
-        # Parse the XML response
-        root = Tree.fromstring(response.text)
-
-        # Locate the mimNumber in the response
-        mim_number_element = root.find(".//mimNumber")
-        if mim_number_element is not None:
-            return mim_number_element.text
-        else:
-            if not quiet:
-                print(f"No mimNumber found for gene: {gene}")
-            return None
-    except requests.exceptions.RequestException as e:
-        if not quiet:
-            print(f"Error fetching mimNumber for gene {gene}: {e}")
-        return None
-
-
-# 2. parse omim text
-def get_all_mim(file_path, save_path = 'allMim_gene.pkl', description = False): # works with cancer list too
-    """
-    Fetch mimNumbers for a list of genes and return as a dictionary.
-
-    Args:
-        file_path (path to the pkl file)
-        description (bool)
-    Return:
-        dictionary
-    """
-    mim_numbers = {}
-    ls = []
-    with open(file_path, "rb") as file:
-        gene_list = pkl.load(file)
-    for gene in tqdm(gene_list, desc="Processing"):
-        if description:
-            print(f"Fetching mimNumber for gene: {gene}...")
-        mim_number = get_mim_number(gene)
-        if mim_number:
-            mim_numbers[gene] = mim_number
-            ls.append(mim_number)
-        time.sleep(0.1)
-    with open(save_path, "wb") as file:
-        pkl.dump(ls, file)
-    return mim_numbers
-
-
-# fetch data using mimNumber in OMIM.org
-
-def fetch_omim_data(mim_number):
-    """
-    Fetch OMIM data for a given mimNumber from the API.
-    """
+    global request_count
+    api_key = get_api_key()
     url = f"https://api.omim.org/api/entry"
     params = {
         "mimNumber": mim_number,
         "include": "text,geneMap,clinicalSynopsis",
         "format": "xml",
-        "apiKey": KEY
+        "apiKey": api_key,
     }
 
     try:
         response = requests.get(url, params=params)
-        response.raise_for_status() # raise an exception if the HTTP request returned an unsuccessful status code.
+        response.raise_for_status()  # Raise exception for unsuccessful status codes
+        request_count += 1
         return response.text
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching data for mimNumber {mim_number}: {e}")
-        return None
-
-
-# def parse_omim_response(response_text):
-#     """
-#     Parse the OMIM XML response to extract text description, gene map, and titles.
-#     """
-#     try:
-#         root = Tree.fromstring(response_text)
-#         entry = root.find(".//entry")
-#
-#         # Extract titles
-#         preferred_title = entry.findtext(".//preferredTitle", default="Unknown Gene")
-#         gene_symbols = entry.findtext(".//geneSymbols", default="Unknown Symbol").split(",")[0].strip()
-#
-#         # Extract text description
-#         text_sections = entry.findall(".//textSection")
-#         text_description = []
-#         for section in text_sections:
-#             section_title = section.findtext("textSectionTitle", default="No Title")
-#             section_content = section.findtext("textSectionContent", default="No Content")
-#             text_description.append(f"{section_title}:\n{section_content}")
-#         text_description = "\n\n".join(text_description)
-#
-#         # Extract gene map
-#         gene_map = entry.find(".//geneMap")
-#         gene_map_data = []
-#         if gene_map is not None:
-#             for child in gene_map:
-#                 gene_map_data.append(f"{child.tag}: {child.text}")
-#         gene_map_data = "\n".join(gene_map_data)
-#
-#         return gene_symbols, preferred_title, text_description, gene_map_data # preferred_title is the full name of the gene
-#     except Exception as e:
-#         print(f"Error parsing response: {e}")
-#         return None, None, None, None
+        print(f"Error fetching data for MIM number {mim_number}: {e}")
+        print("Terminating program due to API failure.")
+        exit(1)
 
 
 def parse_omim_response(response_text):
@@ -200,33 +76,23 @@ def parse_omim_response(response_text):
 
         # Extract text description
         text_sections = entry.findall(".//textSection")
-        text_description = []
-        if text_sections:
-            for section in text_sections:
-                section_title = section.findtext("textSectionTitle", default="No Title")
-                section_content = section.findtext("textSectionContent", default="No Content")
-                text_description.append(f"{section_title}:\n{section_content}")
-        text_description = "\n\n".join(text_description) if text_description else "No Text Description Available"
+        text_description = "\n\n".join(
+            f"{section.findtext('textSectionTitle', 'No Title')}:\n{section.findtext('textSectionContent', 'No Content')}"
+            for section in text_sections
+        ) if text_sections else "No Text Description Available"
 
         # Extract gene map
         gene_map = entry.find(".//geneMap")
-        gene_map_data = []
-        if gene_map is not None:
-            for child in gene_map:
-                if child.tag and child.text:  # Ensure valid content
-                    gene_map_data.append(f"{child.tag}: {child.text.strip()}")
-        gene_map_data = "\n".join(gene_map_data) if gene_map_data else "No Gene Map Data Available"
+        gene_map_data = "\n".join(
+            f"{child.tag}: {child.text.strip()}" for child in gene_map if child.tag and child.text
+        ) if gene_map is not None else "No Gene Map Data Available"
 
         # Extract clinical synopsis
         clinical_synopsis = entry.find(".//clinicalSynopsis")
-        clinical_synopsis_data = []
-        if clinical_synopsis is not None:
-            for child in clinical_synopsis:
-                if child.tag and child.text:  # Ensure valid content
-                    clinical_synopsis_data.append(f"{child.tag}: {child.text.strip()}")
-        clinical_synopsis_data = "\n".join(clinical_synopsis_data) if clinical_synopsis_data else "No Clinical Synopsis Available"
+        clinical_synopsis_data = "\n".join(
+            f"{child.tag}: {child.text.strip()}" for child in clinical_synopsis if child.tag and child.text
+        ) if clinical_synopsis is not None else "No Clinical Synopsis Available"
 
-        # Return parsed data
         return gene_symbols, preferred_title, text_description, gene_map_data, clinical_synopsis_data
 
     except Exception as e:
@@ -234,61 +100,70 @@ def parse_omim_response(response_text):
         return None, None, None, None, None
 
 
-def save_to_txt(gene_symbol, preferred_title, mim_number, text_description, gene_map_data, output_file):
+def load_checkpoint(output_file):
     """
-    Save the extracted data to a text file.
+    Load processed data from an existing JSON file to resume processing.
+    
+    Args:
+        output_file (str): Path to the output JSON file.
+    Returns:
+        set: Set of already processed MIM numbers.
     """
-    with open(output_file, "a") as f:
-        f.write(f"Cancer Data for {gene_symbol} ({preferred_title}) (MIM Number: {mim_number})\n")
-        f.write("=" * 50 + "\n")
-        f.write("TEXT DESCRIPTION:\n")
-        f.write("=" * 50 + "\n")
-        f.write(f"{text_description}\n\n")
-        f.write("GENE MAP:\n")
-        f.write("=" * 50 + "\n")
-        f.write(f"{gene_map_data}\n\n")
-        f.write("=" * 50 + "\n\n")
+    if os.path.exists(output_file):
+        with open(output_file, "r", encoding="utf-8") as f:
+            processed_data = {json.loads(line)["mim_number"] for line in f}
+        print(f"Resuming from checkpoint. {len(processed_data)} entries loaded.")
+        return processed_data
+    return set()
 
 
-def process_mim_numbers(input_file, output_file, description = True):
+def process_mim_numbers_to_json(input_file, output_file, description=True):
     """
-    Process a list of mimNumbers and save the results to a text file.
-    Input_file is assumed to be in pkl format.
+    Process a list of MIM numbers, fetch their data, and save the results to a JSON file.
+
+    Args:
+        input_file (str): Path to the file containing MIM numbers (in pickle format).
+        output_file (str): Path to save the JSON output.
+        description (bool): Whether to print progress messages.
     """
-    # Clear the output file
-    open(output_file, "w").close()
+    processed_mim_numbers = load_checkpoint(output_file)
 
     with open(input_file, "rb") as file:
         mim_numbers = pkl.load(file)
-    for mim_number in tqdm(mim_numbers,desc="Processing"):
-        if description:
-            print(f"Processing MIM Number: {mim_number}")
-        response_text = fetch_omim_data(mim_number)
-        if response_text:
-            gene_symbol, preferred_title, text_description, gene_map_data = parse_omim_response(response_text)
-            if gene_symbol and preferred_title and text_description and gene_map_data:
-                save_to_txt(gene_symbol, preferred_title, mim_number, text_description, gene_map_data, output_file)
-        else:
-            print(f"Skipping MIM Number: {mim_number}")
-        time.sleep(0.1)
 
-    print(f"Data saved to {output_file}")
+    with open(output_file, "a", encoding="utf-8") as f:
+        for mim_number in tqdm(mim_numbers, desc="Processing MIM Numbers"):
+            if mim_number in processed_mim_numbers:
+                continue  # Skip already processed MIM numbers
+
+            if description:
+                print(f"Processing MIM Number: {mim_number}")
+
+            response_text = fetch_omim_data_with_key(mim_number)
+            if response_text:
+                gene_symbol, preferred_title, text_description, gene_map_data, clinical_synopsis = parse_omim_response(response_text)
+                if any([gene_symbol, preferred_title, text_description, gene_map_data, clinical_synopsis]):
+                    gene_data = {
+                        "gene_name": gene_symbol,
+                        "preferred_title": preferred_title,
+                        "mim_number": mim_number,
+                        "text_description": text_description,
+                        "gene_map_data": gene_map_data,
+                        "clinical_synopsis": clinical_synopsis,
+                    }
+                    f.write(json.dumps(gene_data, ensure_ascii=False) + "\n")
+                else:
+                    print(f"Incomplete data for MIM Number: {mim_number}, skipping.")
+            else:
+                print(f"Failed to fetch data for MIM Number: {mim_number}, skipping.")
+
+            # Add a short delay to avoid overwhelming the API
+            time.sleep(0.1)
+
+    print(f"Data successfully saved to {output_file}")
 
 
-# tests
 if __name__ == "__main__":
-    # 1. ensure API access is functional
-    # test_omim_api_access()
-    # 2. test fetching mimNumber for a single gene
-    num = get_mim_number('ABHD6')
-    print(num)
-    # 3. Try fetching genes for the first 5 entries of Ash
-    # mim_dict = get_all_mim_gene("genes1592.pkl")
-    # print(mim_dict)
-    # 4. fetching text data and gene map from mim number
-    # process_mim_numbers("allMim_gene.pkl", "all_gene.txt")
-    # 5. fetch cancer data
-    cancer_list = [151400, 113970, 605207, 613024, 254500, 236000, 186960, 153600] # incomplete list
-    with open("allMim_cancer.pkl", "wb") as file:
-        pkl.dump(cancer_list, file)
-    process_mim_numbers("allMim_cancer.pkl", "omim_scrape/all_cancer.txt")
+    # Example
+    output_json = "omim_scrape/valid_mim_numbers.json" # Example path to save the JSON output
+    process_mim_numbers_to_json("omim_scrape/valid_mim_numbers.pkl", output_json, description=True)
