@@ -163,7 +163,7 @@ def process_mim_numbers_to_json(input_file, output_file, description=True):
     print(f"Data successfully saved to {output_file}")
 
 
-if __name__ == "__main__":
-    # Example
-    output_json = "omim_scrape/valid_mim_numbers.json" # Example path to save the JSON output
-    process_mim_numbers_to_json("omim_scrape/valid_mim_numbers.pkl", output_json, description=True)
+# if __name__ == "__main__":
+    # # Example
+    # output_json = "omim_scrape/valid_mim_numbers.json" # Example path to save the JSON output
+    # process_mim_numbers_to_json("omim_scrape/valid_mim_numbers.pkl", output_json, description=True)
