@@ -1,3 +1,8 @@
+"""
+Populate a Chroma-based vector store with chunked JSON data from OMIM database or loading existing persisted database.
+Then, use a hybrid chain to answer user queries by retrieving relevant documents from the vector store and combining them with the LLM's general knowledge.
+"""
+
 import os
 import warnings
 from langchain_community.chat_models import ChatOpenAI
