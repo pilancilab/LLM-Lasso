@@ -1,5 +1,5 @@
 """
-Implements data-driven feature selector. K is the number of features to be selected.
+Implements data-driven feature selector baselines. K is the number of features to be selected.
 
 Description: this is a feature Selection Script with Command-Line Interface.
 
@@ -8,7 +8,6 @@ Supports four feature selection methods:
 - Recursive Feature Elimination (RFE)
 - Minimum Redundancy Maximum Relevance (MRMR)
 - Random Feature Selection
-
 """
 
 import os
@@ -18,12 +17,13 @@ import pandas as pd
 from sklearn.feature_selection import mutual_info_regression, RFE
 from sklearn.linear_model import LogisticRegression
 import random
-from Expert_RAG.data_processing import load_feature_names
+from utils.data import load_feature_names
 import pickle
 import json
-from LLasso.splits import read_train_test_splits
+from task_specific_lasso.splits import read_train_test_splits
 
-## Helpers ##
+################################# Helpers #######################################
+
 def load_x_from_txt(file_path, gene_names):
     """
     Load feature matrix (X) from a .txt file and assign gene names as column names.
@@ -87,6 +87,8 @@ def load_y_from_txt(file_path):
     return data
 
 
+######################## Data-Driven Feature Selection Baselines ######################################
+
 # 1. Filtering by Mutual Information (MI)
 def mi_filter_method(X, y, k):
     mi = mutual_info_regression(X, y, random_state=42, discrete_features=False)
@@ -103,7 +105,7 @@ def rfe_method(X, y, n_features_to_select):
     selected_features = X.columns[selector.support_].tolist()
     return X[selected_features], selected_features
 
-
+# 3. Minimum Redundancy Maximum Relevance (MRMR)
 def mrmr_method(X:pd.DataFrame, y, k):
     mi = mutual_info_regression(X, y, random_state=42, discrete_features=False)
     mi_scores = pd.Series(mi, index=X.columns)
@@ -133,13 +135,14 @@ def mrmr_method(X:pd.DataFrame, y, k):
     return X[selected_features], selected_features
 
 
-
 # 4. Random Feature Selector
 def random_feature_selector(X, k, random_state=42):
     random.seed(random_state)
     selected_features = random.sample(list(X.columns), k)
     return X[selected_features], selected_features
 
+
+#################################### Main Feature Selection Function ##############################
 
 def feature_selector(X, y, method, k, random_state=42):
     """
@@ -166,7 +169,6 @@ def feature_selector(X, y, method, k, random_state=42):
         return random_feature_selector(X, k, random_state=random_state)
     else:
         raise ValueError("Invalid method. Choose from 'mi', 'rfe', 'mrmr', 'random'.")
-
 
 
 def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42):
@@ -252,6 +254,7 @@ def run_all_baselines_for_splits(
     print(f"All results saved in {save_dir}")
 
 
+#################################### Main Function ##############################
 if __name__ == "__main__":
     #main()
 

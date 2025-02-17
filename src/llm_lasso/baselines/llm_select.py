@@ -4,7 +4,7 @@ Implements LLM-Select feature selector from {jeong2024llmselectfeatureselectionl
 (ii) selecting features based on an LLM-generated ranking;
 (iii) sequentially selecting features in a dialogue with an LLM.
 
-We will implement LLM-Scores but without memorization.
+We implement LLM-Scores.
 """
 
 import argparse
@@ -16,9 +16,9 @@ from tqdm import tqdm
 from openai import OpenAI
 from langchain_community.chat_models import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
-from Expert_RAG.utils import *
-from LlaMa.lama import OpenRouterLLM
-import Expert_RAG.data_processing as dp
+from utils.score_collection import *
+from llm_penalty.openrouter import OpenRouterLLM
+import utils.data as dp
 warnings.filterwarnings("ignore")  # Suppress warnings
 
 os.environ["OPENAI_API_KEY"] = "YOUR KEY HERE"
@@ -52,7 +52,6 @@ def wipe_save_dir(save_dir):
             logging.info(f"Removed file: {file_path}")
 
 # Query in batches with OpenRouter
-
 def query_genes_openrouter(category, genenames_unique, prompt_dir, save_dir, model_name, temp=0.5, top_p=0.9, repetition_penalty=0.9, batch_size=30, n_trials=1, wipe=False):
     """
     Query genes in batches using OpenRouter LLM and compute final scores as averages across trials.
@@ -170,7 +169,7 @@ def query_genes_openrouter(category, genenames_unique, prompt_dir, save_dir, mod
         )
     return results, final_scores
 
-# Query in batches with OpenAI GPT
+# Query in batches with OpenAI API
 def query_genes_GPT(category, genenames_unique, prompt_dir, save_dir, model_name, temp=0.5, batch_size=30, n_trials=1, wipe=False):
     """
     Query genes in batches using OpenAI GPT and compute final scores as averages across trials.
