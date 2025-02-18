@@ -98,8 +98,6 @@ def calculate_weighted_importance(importance_matrix, yclass):
     """
     unique_categories, class_counts = np.unique(yclass, return_counts=True)
 
-    category_order = unique_categories
-    cancer_order = unique_categories[unique_categories != 'Healthy cfDNA'] # masking out the healthy category
     # masking out healthy category in class_counts too
     health_index = np.nonzero(unique_categories == 'Healthy cfDNA')[0][0]
     cancer_counts = np.delete(class_counts, health_index)
@@ -121,8 +119,6 @@ def calculate_weighted_importance(importance_matrix, yclass):
 def cancer_weighted(importance_matrix, yclass):
     unique_categories, class_counts = np.unique(yclass, return_counts=True)
 
-    category_order = unique_categories
-    cancer_order = unique_categories[unique_categories != 'Healthy cfDNA'] # masking out the healthy category
     # masking out healthy category in class_counts too
     health_index = np.nonzero(unique_categories == 'Healthy cfDNA')[0][0]
     cancer_counts = np.delete(class_counts, health_index)

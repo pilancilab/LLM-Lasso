@@ -186,8 +186,7 @@ def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42)
     - random_state (int): Random seed for reproducibility.
     """
     # Baseline methods
-    # methods = ['mi', 'rfe', 'random', 'mrmr']
-    methods = ["random", "mrmr"]
+    methods = ['mi', 'rfe', 'random', 'mrmr']
 
     # Ensure the save directory exists
     os.makedirs(save_dir, exist_ok=True)

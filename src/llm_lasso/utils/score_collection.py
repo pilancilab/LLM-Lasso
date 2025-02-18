@@ -8,8 +8,6 @@ import pickle as pkl
 import re
 import sys
 import numpy as np
-import logging
-import json
 
 def create_general_prompt(prompt_dir,category,genes, singular = False, display = False):
     """

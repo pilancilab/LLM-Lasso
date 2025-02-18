@@ -88,6 +88,7 @@ def run_repeated_llm_lasso_cv(
             )
             res["split"] = split_idx
             res["model"] = model
+            res["is_baseline"] = False
             all_results = pd.concat([all_results, res], ignore_index=True)
 
         # iterate over each baseline
@@ -101,12 +102,23 @@ def run_repeated_llm_lasso_cv(
             x_test=x_test_splits[split_idx],
             y_train=y_train_splits[split_idx],
             y_test=y_test_splits[split_idx],
-            max_features=all_results['n_genes'].max(),
+            max_features=all_results['n_features'].max(),
             feature_baseline=split_baseline, folds_cv=folds_cv,
             seed=seed + split_idx, n_threads=n_threads,
             regression=regression
         )
+        res["split"] = split_idx
+        res["model"] = "Baseline"
+        res["is_baseline"] = True
         all_results = pd.concat([all_results, res], ignore_index=True)
+
+    baseline_names = all_results[all_results["is_baseline"] == True]["method"].unique()
+    all_results['method_model'] = all_results.apply(
+        lambda row: "Lasso" if row['method'] == "Lasso" else
+                   row['method'] if row['method'] in baseline_names else
+                    f"{row['method']} - {row['model']}",
+        axis=1
+    )
     return all_results
 
 
@@ -241,8 +253,7 @@ def llm_lasso_cv(
         pf_type.append(f"1/imp^{i}")
 
     score_names = ["Lasso", "1/imp"]
-    results = pd.DataFrame(columns=["best_method_model", "method", "test_error", "auroc", "n_genes"])
-    feature_df: pd.DataFrame = None
+    results = pd.DataFrame(columns=["best_method_model", "method", "test_error", "auroc", "n_features"])
 
     ref_cvm = None
     ref_nonzero = None
@@ -353,10 +364,9 @@ def llm_lasso_cv(
             ]
 
         (feature_count_raw, signs_raw) = count_feature_usage(model,  multinomial, x_train.shape[1], tolerance=tolerance)
-        feature_cols = list(feature_count_raw.columns) + list(signs_raw.columns)
 
         df = pd.DataFrame({
-            'n_genes': non_zero_coefs_raw,
+            'n_features': non_zero_coefs_raw,
             'test_error': test_error_raw,
             "auroc": roc_auc_raw
         })
@@ -366,18 +376,12 @@ def llm_lasso_cv(
 
         # Group by 'non_zero_coefs' and filter rows where 'metric' is the minimum for each group
         df = (
-            df.loc[df.groupby('n_genes')['test_error'].idxmin()]
+            df.loc[df.groupby('n_features')['test_error'].idxmin()]
             .reset_index(drop=True)
         )
-
-        if feature_df is None:
-            feature_df = df[feature_cols]
-        else:
-            feature_df = pd.concat([feature_df, df[feature_cols]], ignore_index=True)
-        df.drop(feature_cols, inplace=True)
         results = pd.concat([results, df], ignore_index=True)
 
-    return pd.concat([results, feature_df], axis=1)
+    return results
 
 
 def run_baselines(
@@ -424,7 +428,7 @@ def run_baselines(
     x_train_scaled = scale_cols(x_train)
     x_test_scaled = scale_cols(x_test, center=x_train.mean(axis=0), scale=x_train.std(axis=0))
 
-    results = pd.DataFrame(columns=["method", "test_error", "auroc", "n_genes"])
+    results = pd.DataFrame(columns=["method", "test_error", "auroc", "n_features"])
     
     for model_name in model_names:
         ordered_features = feature_baseline[model_name]
@@ -456,23 +460,27 @@ def run_baselines(
                 else:
                     n_nonzero = np.count_nonzero(np.abs(model.coef_) > tolerance)
 
-                results.loc[-1] = [
-                    model_name,
-                    1 - accuracy_score(y_test.to_numpy(), np.argmax(preds, axis=1)), # test error
-                    roc_auc_score(y_test, preds[:, 1] if preds.shape[1] == 2 else preds, multi_class='ovr'), # AUROC
-                    n_nonzero # feature count
-                ]
+                results = pd.concat([pd.DataFrame([
+                    [
+                        model_name,
+                        1 - accuracy_score(y_test.to_numpy(), np.argmax(preds, axis=1)), # test error
+                        roc_auc_score(y_test, preds[:, 1] if preds.shape[1] == 2 else preds, multi_class='ovr'), # AUROC
+                        n_nonzero # feature count
+                    ]
+                ], columns=results.columns), results], ignore_index=True)
             else: # regression
                 model = LinearRegression(
                     n_jobs=n_threads,
                 ).fit(x_subset_train.to_numpy(), y_train.to_numpy())
                 preds = model.predict(x_subset_test.to_numpy())
-                results.loc[-1] = [
-                    model_name,
-                    mean_squared_error(y_test.to_numpy(), preds), # test error
-                    None, # AURIC is undefined for regression,
-                    np.count_nonzero(np.abs(model.coef_) > tolerance) # feature count
-                ]
+                results = pd.concat([pd.DataFrame([
+                        [
+                        model_name,
+                        mean_squared_error(y_test.to_numpy(), preds), # test error
+                        None, # AURIC is undefined for regression,
+                        np.count_nonzero(np.abs(model.coef_) > tolerance) # feature count
+                    ]
+                ], columns=results.columns), results], ignore_index=True)
 
     return results
 
