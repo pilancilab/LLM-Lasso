@@ -59,6 +59,7 @@ def error_bars(x, upper, lower, color, width=0.02, x_offset=0):
 def plot_llm_lasso_result(
     all_results: pd.DataFrame,
     baseline_names: list[str],
+    n_splits: int,
     methods = None,
     regression = False,
     quantize_gene_counts = False,
@@ -70,12 +71,19 @@ def plot_llm_lasso_result(
     Plot result of LLM-Lasso alongside baselines.
 
     Parameters:
-    - `all_results`: output dataframe from `run_repeated_llm_lasso_cv`.
-    - `methods`: which methods to plot. Plots all if None.
+    - `all_results`: output dataframe from `run_repeated_llm_lasso_cv`,
+    - `baseline_names`: names of the baseline methods (baselines use a different
+        color scheme).
+    - `n_splits`: number of train/test splits, used for generating the plot title. 
+    - `methods`: which methods to plot. For LLM-Lasso methods, in the format
+        "model_name - method_name", e.g., "RAG - 1/imp". Plots all if None.
+    - `regression`: whether it was a regression problem, in which case the AUROC
+        cannot be plotted.
     - `quantize_gene_counts`: whether to quantize the x-axis (number of features).
     - `n_gene_count_bins`: quantization granularity if `quantize_gene_counts`
         is True. 
-    - `feature_baseline`: list of baselines
+    - `bolded_methods`: list of methods to bold, in the same format as `methods`.
+    - `plot_error_bars`: whether to plot standard deviation error bars.
     """
     
     if quantize_gene_counts:
@@ -170,4 +178,3 @@ def plot_llm_lasso_result(
         plt.legend(fontsize=14, bbox_to_anchor=(1.02, 0.5), loc="center left")
         plt.tick_params(axis='both', labelsize=12)  # Change font size for both x and y axes
         plt.title(f"LLM-LASSO Performance across {n_splits} Splits", fontdict={"size": 18})
-    return all_results, best_models
