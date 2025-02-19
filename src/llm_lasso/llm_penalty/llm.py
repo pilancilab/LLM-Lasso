@@ -106,7 +106,7 @@ class LLMQueryWrapperWithMemory:
         self.repetition_penalty = repetition_penalty
 
         if llm_type == LLMType.GPT4O or llm_type == LLMType.O1:
-            self.chat = ChatOpenAI(model=llm_name, temperature=temperature)
+            self.chat = ChatOpenAI(model=llm_name, temperature=temperature, top_p=top_p)
             self.openai_client = OpenAI()
         else:
             self.llm_type = LLMType.OPENROUTER

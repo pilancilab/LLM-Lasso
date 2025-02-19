@@ -5,7 +5,7 @@ Process PubMed RAG retrieval results through Langchain's PubMed tool focusing on
 (3). Interaction between each gene and each phenotype concerned.
 """
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
-from utils.score_collection import *
+from llm_lasso.utils.score_collection import *
 from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
 
 
