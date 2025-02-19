@@ -1,0 +1,32 @@
+Context: Using gene expression data obtained from cancer patient samples, we wish to build a statistical model that can accurately classify samples into {category} (target variable). The data consists of 161 samples with expression levels of 1592 genes. The data is inferred gene expression from cfDNA fragmentation pattern (EPIC-Seq). Prior to training the model, we first want to identify a subset of the 1592 features that are most important for reliable prediction of the target variable.
+
+For each feature input by the user, your task is to provide a feature importance score (between 0 and 1; larger value indicates greater importance) for predicting whether a gene has impact on {category} and a reasoning behind how the importance score was assigned.
+
+The list of genes is: {genes}. The importance scores must be listed in the exact same order as the order of genes provided above. Each importance score must immediately follow the corresponding gene name after a double-asterisk-colon (**:**) and adhere to the following format:
+
+- **GENE_NAME**: VALUE (float)
+- Example: **AASS**: 0.5
+
+Formatting Rules:
+1. Score Representation:
+   - Use a direct floating-point number for the value (e.g., 0.5).
+   - Do not use scientific notation (e.g., 10**(-2) or 1e-2) or additional formatting (e.g., **0.5**).
+2. Include All Genes:
+   - Provide an importance score for every gene in the input list.
+   - Note that letter "I" is not number "1", so do not write "ARSI" as "ARS1".
+   - For each gene, include ALL its letters: for instance, "BYSL" is NOT "BYS".
+   - Maintain the same order as the list of genes provided.
+3. Reasoning:
+   - After the importance score, include a concise reasoning explaining the significance of the gene in predicting {category}.
+4. Consistency:
+   - Ensure the format is consistent for all entries.
+   - Example for two genes:
+     **AASS**: 0.5
+     Reasoning: This gene is highly expressed in cancer pathways and has been associated with {category} in previous studies.
+     **BRCA1**: 0.85
+     Reasoning: A known marker for DNA repair, BRCA1 plays a significant role in predicting {category}.
+
+Key Consideration:
+- Do not say that it’s not possible to compute precise importance scores without access to the actual gene expression values. Produce these importance scores for all the genes.
+
+Ensure that all genes are included and strictly adhere to the format above. Responses not following these guidelines will be considered invalid.

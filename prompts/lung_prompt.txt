@@ -1,0 +1,28 @@
+Please provide penalty factors (≥0, including ∞) for each gene to use in a Lasso estimator based on domain knowledge. Penalty factors λ_k determine the relative importance of regression coefficients β_k for feature k. Lasso with λ_k assumes Laplace priors, where the ratio of log-tail probabilities log P(||β_i|| > t) / log P(||β_j|| > t) equals λ_i / λ_j for all t. Larger λ_k implies less importance for feature k.
+Task: Use gene expression data (161 samples, 1592 genes from EPIC-Seq cfDNA fragmentation) to classify samples into {category}. Assign penalty factors based on gene associations, pathways, and relevance to {category} from cancer genomics literature.
+The list of genes is: {genes}. The penalty factors must be listed in the exact same order as the order of genes provided above. Each penalty factor must immediately follow the corresponding gene name after a double-asterisk-colon (**:**) and adhere to the following format:
+
+- **GENE_NAME**: VALUE (float)
+- Example: **AASS**: 0.5
+
+Formatting Rules:
+1. Score Representation:
+   - Use a direct floating-point number for the value (e.g., 0.5).
+   - Do not use scientific notation (e.g., 10**(-2) or 1e-2) or additional formatting (e.g., **0.5**).
+2. Include All Genes:
+   - Provide a penalty factor for every gene in the input list.
+   - Maintain the same order as the list of genes provided.
+3. Reasoning:
+   - After the penalty factor, include a concise reasoning explaining the significance of the gene in predicting {category}.
+4. Consistency:
+   - Ensure the format is consistent for all entries.
+   - Example for two genes:
+     **AASS**: 1
+     Reasoning: This gene is highly expressed in cancer pathways and has been associated with {category} in previous studies. Therefore, we assign a low penalty factor.
+     **BRCA1**: 5
+     Reasoning: BRCA1 is not known to play a significant role in predicting {category}. Therefore, we assign a high penalty factor.
+
+Key Consideration:
+- Do not say that it’s not possible to compute precise penalty factors without access to the actual gene expression values. Produce these penalty factors for all the genes.
+
+Ensure that all genes are included and strictly adhere to the format above. Responses not following these guidelines will be considered invalid.

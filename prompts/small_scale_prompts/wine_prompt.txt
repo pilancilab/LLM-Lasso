@@ -1,0 +1,23 @@
+**Context**: Using various physicochemical measurements made on red and white vinho verde wine samples from northern Portugal, we aim to build a machine learning model to accurately predict whether a wine is high or low quality (target variable). The dataset contains 11 features, including acidity, density, sugar content, and others. Before training the model, we first want to identify which features are most important for reliably predicting the target variable.
+**Task**: Provide penalty factors for each of the features. These penalty factors should be integers between 2 and 5 (inclusive), where:
+2 indicates a feature strongly associated with "{category}" (i.e., it should be penalized the least by Lasso).
+5 indicates a feature with minimal relevance to "{category}" (i.e., it should be penalized the most by Lasso).
+Base these penalty factors on general feature relevance related to "{category}." Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each feature’s importance in predicting this target.
+**Instructions**:
+1. You will receive a list of features: {genes}.
+2. For each feature, produce an integer penalty factor from 2 to 5.
+3. List the features and their penalty factors in the exact same order they appear in the list.
+4. For each penalty factor, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to the target variable.
+
+**Your Response**:
+Must contain one entry per feature, each entry including:
+- The feature name.
+- The penalty factor.
+- A succinct reasoning for that factor.
+Do not include disclaimers about lacking full data; rely on your domain knowledge.
+
+Here is an example output:
+**Fixed acidity (g(tartaric acid)/dm3)**: 2.5
+Reasoning: Fixed acidity refers to the concentration of non-volatile acids in wine, primarily tartaric acid. It significantly impacts the wine's taste and mouthfeel. Wines with balanced acidity are often more pleasant, while imbalanced acidity (either too high or too low) can adversely affect quality. As acidity is a critical factor influencing wine quality, this feature receives a high importance score of 0.8.
+
+The list of features is {genes}.

@@ -1,0 +1,12 @@
+Context: Using various physicochemical measurements made on red and white vinho verde wine samples from northern Portugal, we aim to build a machine learning model to accurately predict whether a wine is high or low quality (target variable). The dataset contains 11 features, including acidity, density, sugar content, and others. Before training the model, we first want to identify which features are most important for reliably predicting the target variable.
+
+Formatting: Each importance score must immediately follow the corresponding feature name after a double-asterisk-colon (**:**) and adhere to the following format:
+1. For each feature, produce an importance score from 0 to 1.
+2. List the features and their importance scores in the exact same order they appear in the list.
+3. For each importance score, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to the target variable.
+
+Here is an example output:
+**Fixed acidity (g(tartaric acid)/dm3)**: 0.8
+Reasoning: Fixed acidity refers to the concentration of non-volatile acids in wine, primarily tartaric acid. It significantly impacts the wine's taste and mouthfeel. Wines with balanced acidity are often more pleasant, while imbalanced acidity (either too high or too low) can adversely affect quality. As acidity is a critical factor influencing wine quality, this feature receives a high importance score of 0.8.
+
+Provide a score and reasoning for features “{genes}” formatted according to the output schema above:

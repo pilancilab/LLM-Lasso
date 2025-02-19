@@ -1,0 +1,80 @@
+Using gene expression data obtained from lymphoma samples, we wish to
+build a statistical model that can accurately classify samples into
+subtypes of lymphoma[, namely chronic lymphocytic leukemia, Burkitt
+lymphoma, DLBCL, follicular lymphoma, transformed follicular lymphoma,
+mantle cell lymphoma, primary mediastinal large B cell lymphoma,
+Waldenstrom macroglobulinemia, multiple myeloma, transformed marginal
+zone lymphoma, and classic Hodgkin lymphoma, as well as a healthy
+control]. [The data consists of 437 samples with expression levels of
+1882 genes.] [The data is inferred gene expression from cfDNA
+fragmentation pattern (EPIC-Seq).] Prior to training the model, we first
+want to obtain feature importance scores to use in training our model,
+as specified above. Your task is to provide feature importance scores
+for each gene in predicting the lymphoma subtype[, based on your
+knowledge on lymphoma].
+
+We plan to use the scores with a lasso-regularized multinomial
+classifier, implemented via the R package 'glmnet". The scores will
+produce penalty factors (weights on the L1 norm) that are then used in
+glmnet. The idea is that higher importance genes will be given smaller
+penalty factors, and lower importance genes will be given larger penalty
+factors.
+
+Call the feature matrix "xall" (#observations by number of genes) and
+the multinomial (class) outcome "yall". Similarly suppose we have a test
+set "xtest" with corresponding multinomial outcome "ytest."
+
+Let "scores" be the p-vector of gene importance scores provided by
+chatGPT.
+
+Then the details of our plan are given in the following R code:
+
+#helper function \# computes reLu-style penalty factors from importance
+scores "scores", using cutpoint "scorcut"
+
+pffunRelu=function(scores,scorcut,fac=1){ p=length(scores)
+ord=order(scores) x=sort(scores)
+
+```
+pf=pfout=rep(NA,p)
+```
+
+pf[x\>=scorcut]=1 slope= 1/(1-scorcut)
+pf[x\<scorcut]=slope*(1-x[x\<scorcut]) pf=fac*(pf-1)+1 cat(k)
+
+pfout[ord]=pf return(pfout) }
+
+#main code cutlist=seq(.1,.9,by=.1)
+cvfit3=vector("list",length(cutlist)) cverr=rep(NA,length(cutlist))
+fac=10
+
+#find the value of "scorcut" that produces the smallest CV error ii=0\
+for(scorcut in cutlist){ ii=ii+1 cat(scorcut,fill=T)
+pf=pffunRelu(scores,scorcut,fac=fac)
+
+```
+suppressWarnings({
+```
+
+cvfit3[[ii]]=cv.glmnet(xall2[otr,],yall[otr],foldid=foldid2,
+family="multinomial",type.measure="class",keep=TRUE,penalty.factor=pf)
+\# }) minerr[ii]=min(cvfit3[[ii]]\$cvm)
+
+} cutbest=cutlist[which.min(minerr)) #cutpoint with lowest cv error
+iihat=which.min(minerr) #corresponding best model
+
+#finally use this "optimal" model to make predictions on test data
+
+pfbest=pffunRelu(scores, cutbest,fac=fac)
+
+fit3=glmnet(xall,yall, family="multinomial",penalty.factor=pfbest)
+testerr=assess.glmnet(fit3,newx=xtest, newy=ytest,
+s=cvfit2[[iihat]]$lambda.min, family = c("multinomial"))$class
+
+#we'd like a model with low test error!
+
+The list of genes are below. Please generate just the gene names and the
+feature importance scores [for all of the genes] in a tab-delimited
+format as a txt file. [Please do not say you cannot do this task or
+generate a random feature importance scores, and do this to the best of
+your abilities based on expert domain knowledge.]

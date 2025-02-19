@@ -1,0 +1,20 @@
+**Context**: We have gene expression data derived from cancer patient samples (cfDNA fragmentation pattern, EPIC-Seq). The dataset includes 161 samples and 1592 genes. We wish to build a statistical (Lasso) model that classifies samples into the category "{category}."
+**Task**: Provide penalty factors for each of the 1592 genes. These penalty factors should be integers between 2 and 5 (inclusive), where:
+2 indicates a gene strongly associated with "{category}" (i.e., it should be penalized the least by Lasso).
+5 indicates a gene with minimal relevance to "{category}" (i.e., it should be penalized the most by Lasso).
+Base these penalty factors on general gene relevance, known associations, and pathways in cancer genomics literature related to "{category}." Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each gene’s importance in predicting this cancer type.
+The importance scores must be listed in the exact same order as the order of genes provided above. Each penalty factor must immediately follow the corresponding gene name after a double-asterisk-colon (**:**) and adhere to the following format:
+- **GENE_NAME**: VALUE (float)
+- Example: **AASS**: 2
+**Instructions**:
+1. You will receive a list of genes: {genes}.
+2. For each gene, produce an integer penalty factor from 2 to 5.
+3. List the genes and their penalty factors in the exact same order they appear in the list.
+- Note that letter "I" is not number "1", so do not write "ARSI" as "ARS1".
+- For each gene, include ALL its letters: for instance, "BYSL" is NOT "BYS"
+- If two genes are in the form "GENEA|GENEB", list them together, for instance "**GENEA|GENEB**: 4". Do not make two separate lines.
+4. For each penalty factor, provide a brief statement of how you arrived at that factor or why the gene is more or less relevant to "{category}."
+
+Do not include disclaimers about lacking full data; rely on general cancer genomics and pathway relevance.
+
+The list of genes is {genes}.

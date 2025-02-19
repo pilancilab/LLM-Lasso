@@ -1,0 +1,18 @@
+**Context**: We have gene expression data derived from cancer patient samples (cfDNA fragmentation pattern, EPIC-Seq). The dataset includes 161 samples and 1592 genes. We wish to build a statistical (Lasso) model that classifies samples into the category "{category}."  
+**Task**: Provide penalty factors for each of the 1592 genes. These penalty factors should be integers between 1 and 10 (inclusive), where:
+1 indicates a gene strongly associated with "{category}" (i.e., it should be penalized the least by Lasso).
+10 indicates a gene with minimal relevance to "{category}" (i.e., it should be penalized the most by Lasso).
+Base these penalty factors on general gene relevance, known associations, and pathways in cancer genomics literature related to "{category}." Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each gene's importance in predicting this cancer type.
+**Explanation of Penalty Factors**: I would like you to provide penalty factors greater than or equal to 0 (excluding infinity) to use on each coefficient of a Lasso estimator based on domain knowledge for a regression or classification task. Suppose beta_k is the regression coefficient for feature k. We interpret Lasso with penalty factors lambda_k as yielding a maximum a posteriori estimate under Laplace priors with parameters lambda_k. This means that, before observing the data, the ratio of log-tail probabilities log P( \|beta_i\| \> t ) / log P( \|beta_j\| \> t ) is equal to lambda_i / lambda_j for each i,j for all t. Therefore, the penalty factors are relative log-tail-probabilities of coefficients. For example, if feature A has a penalty factor of lambda and feature B has a penalty factor of 2\*lambda, this means the log-likelihood that the absolute value of the regression coefficient for A exceeds any threshold is twice that of B. Thus, the larger the penalty factor is for a coefficient, the less "important" the coefficient is.
+**Instructions**:
+1. You will receive a list of genes: {genes}.
+2. For each gene, produce an integer penalty factor from 1 to 10.
+3. List the genes and their penalty factors in the exact same order they appear in the list.
+4. For each penalty factor, provide a brief statement of how you arrived at that factor or why the gene is more or less relevant to "{category}."
+**Your Response**:
+Must contain one entry per gene, each entry including:
+- The gene name.
+- The penalty factor.
+- A succinct reasoning for that factor.
+Do not include disclaimers about lacking full data; rely on general cancer genomics and pathway relevance.
+The list of genes is {genes}.

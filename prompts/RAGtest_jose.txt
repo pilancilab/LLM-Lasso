@@ -1,0 +1,19 @@
+You are tasked with helping do what-if analysis to improve out-of-sample prediction on a logistic regression model for classification. The what-if analysis is to be performed according to the following rules. You will be able to change every element in the sample by adding or subtracting to each coordinate or covariate a weighted amount. The size of a change of a given sample is the largest of the weighted absolute value of the covariate changes. The weights are positive, depending on the covariate, but not on the sample; however, the covariate changes can depend on the sample. The total average of the size over the dataset is constrained by a budget reflecting statistical variations in the sample. Also, the sum of the weights is equal to 100.
+
+Your job is to imagine adversarial changes that maximize the prediction loss, but at the same time choose weights that mitigate the impact of the changes, all subject to the budget constraints indicated above. Note that the changes are chosen sample-by-sample, but the weights are applied to the whole sample at the beginning. So, for example, if you know that a covariate is relevant and may vary significantly out-of-sample, the weight should be large, so the change is controlled. If the covariate is irrelevant for the task, the weight should be small, so even if the change is large, it is not too impactful. You must decide on the weights in advance based on your expert opinion thinking of all tradeoffs.
+
+Based on this framework, please provide weight factors for the following task:
+Using gene expression data obtained from cancer patient samples, we wish to
+build a statistical model that can accurately classify samples into
+{category} and Mantle cell lymphoma (MCL). The data consists of 161 samples with expression levels of
+1592 genes. The data is inferred gene expression from cfDNA
+fragmentation pattern (EPIC-Seq). Prior to training the model, we first
+want to obtain penalty factors to use in training our model, as
+specified above. Your task is to provide weights for each gene in predicting the
+cancer {category} based on the gene's general associations, pathways, and relevance to {category} and MCL found in cancer genomics literature.
+
+The list of genes are: {genes}.
+The scores should be listed in the same order as the order of genes provided above followed immediately after the colon (for instance, **AASS**: 3). Also, only use colon when you report the score described previously (i.e. usage in **AASS**: 3).
+You should include each gene in the list. Start with the score, followed by a brief reasoning for each gene's importance in predicting this cancer type.
+Do not say that it's not possible to compute precise importance scores without access to the actual gene expression values.
+Produce these importance scores for all the genes.

@@ -1,0 +1,40 @@
+Context: Using the Glioma Grading Clinical and Mutation Features dataset, we aim to build a machine learning model to predict the glioma grade (target variable) based on a variety of clinical and mutation features. The dataset contains a total of 23 features, including Gender, Age at Diagnosis, Race. Prior to training the model, we first want to identify a subset of the 8 features that are most clinically important for reliable prediction of the target variable.
+
+Formatting: Each importance score must immediately follow the corresponding feature name after a double-asterisk-colon (**:**) and adhere to the following format:
+1. For each feature, produce an importance score from 0 to 1.
+2. List the features and their importance scores in the exact same order they appear in the list.
+3. For each importance score, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to whether a client will subscribe
+to the target variable.
+
+Here is an example output:
+**Gender**: 0.5
+Reasoning: While gender has some association with glioma incidence rates, its predictive power for glioma grading is moderate. Studies suggest slight variations in glioma biology between males and females, but it is not as strong a determinant of grade compared to other features, resulting in a score of 0.5.
+
+Provide a score and reasoning for features
+
+"Gender": "Gender (0 = \"male\"; 1 = \"female\")",
+    "Age at diagnosis": "Age at diagnosis with the calculated number of days",
+    "Race": "Race  (0 = \"white\";  1 = \"black or african American\";  2 = \"asian\";  3 = \"american indian or alaska native\")",
+    "IDH1": "isocitrate dehydrogenase (NADP(+))1 (0 = NOT_MUTATED; 1= MUTATED)",
+    "TP53": "tumor protein p53 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "ATRX": "ATRX chromatin remodeler (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PTEN": "phosphatase and tensin homolog (0 = NOT_MUTATED; 1 = MUTATED)",
+    "EGFR": "epidermal growth factor receptor (0 = NOT_MUTATED; 1 = MUTATED)",
+    "CIC": "capicua transcriptional repressor (0 = NOT_MUTATED; 1 = MUTATED)",
+    "MUC16": "mucin 16, cell surface associated (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PIK3CA": "phosphatidylinositol-4,5-bisphosphate 3-kinase catalytic subunit alpha (0 = NOT_MUTATED; 1 = MUTATED)",
+    "NF1": "neurofibromin 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PIK3R1": "phosphoinositide-3-kinase regulatory subunit 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "FUBP1": "far upstream element binding protein 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "RB1": "RB transcriptional corepressor 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "NOTCH1": "notch receptor 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "BCOR": "BCL6 corepressor (0 = NOT_MUTATED; 1 = MUTATED)",
+    "CSMD3": "CUB and Sushi multiple domains 3 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "SMARCA4": "SWI/SNF related, matrix associated, actin dependent regulator of chromatin, subfamily a, member 4 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "GRIN2A": "glutamate ionotropic receptor NMDA type subunit 2A (0 = NOT_MUTATED; 1 = MUTATED)",
+    "IDH2": "isocitrate dehydrogenase (NADP(+)) 2 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "FAT4": "FAT atypical cadherin 4 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PDGFRA": "platelet-derived growth factor receptor alpha (0 = NOT_MUTATED; 1 = MUTATED)"
+
+formatted according to the output schema above.
+The list of genes is {genes}.

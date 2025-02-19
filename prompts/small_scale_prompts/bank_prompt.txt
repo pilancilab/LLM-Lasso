@@ -1,0 +1,43 @@
+**Context**: Using data collected via a telemarketing campaign at a Portuguese banking institution from 2008 to 2013, we wish to build a machine learning model that can predict whether a client will subscribe to a term deposit (target variable). The dataset contains a total of 15 features (e.g., age, marital status, whether the client has a housing loan). Prior to training the model, we first want to identify a subset of the 15 features that are most important for reliable prediction of the target variable.
+**Task**: Provide penalty factors for each of the features. These penalty factors should be integers between 2 and 5 (inclusive), where:
+2 indicates a feature strongly associated with the target variable (i.e., it should be penalized the least by Lasso).
+5 indicates a feature with minimal relevance to the target variable (i.e., it should be penalized the most by Lasso).
+Base these penalty factors on general feature relevance related to the target variable. Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each feature’s importance in predicting this target.
+**Instructions**:
+1. You will receive a list of features.
+2. For each feature, produce an integer penalty factor from 2 to 5.
+3. List the features and their penalty factors in the exact same order they appear in the list.
+4. For each penalty factor, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to the target variable.
+
+**Your Response**:
+Must contain one entry per feature, each entry including:
+- The feature name.
+- The penalty factor.
+- A succinct reasoning for that factor.
+Do not include disclaimers about lacking full data; rely on your domain knowledge.
+
+Here is an example output:
+**Has Credit in Default**: 2
+Reasoning: Clients with credits in default might be more hesitant to open new financial products due to their current financial situation and may be deemed a higher risk by the bank. Therefore, the score is 0.9.
+
+The list of features with their explanation is
+
+    "age": "age",
+    "job": "type of job (categorical: 'admin.','blue-collar','entrepreneur','housemaid','management','retired','self-employed','services','student','technician','unemployed','unknown')",
+    "marital": "marital status (categorical: 'divorced','married','single','unknown'; note: 'divorced' means divorced or widowed)",
+    "education": "(categorical: 'basic.4y','basic.6y','basic.9y','high.school','illiterate','professional.course','university.degree','unknown')",
+    "default": "has credit in default?",
+    "balance": "average yearly balance",
+    "housing": "has housing loan?",
+    "loan": "has personal loan?",
+    "contact": "contact communication type (categorical: 'cellular','telephone') ",
+    "day of week": "last contact day of the week",
+    "month": "last contact month of year (categorical: 'jan', 'feb', 'mar', ..., 'nov', 'dec')",
+    "duration": " last contact duration, in seconds (numeric). Important note:  this attribute highly affects the output target (e.g., if duration=0 then y='no'). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.",
+    "campaign": "number of contacts performed during this campaign and for this client (numeric, includes last contact)",
+    "pdays": "number of days that passed by after the client was last contacted from a previous campaign (numeric; -1 means client was not previously contacted)",
+    "previous": "number of contacts performed before this campaign and for this client"
+
+Give penalty factors for each feature in the list: {genes}
+
+

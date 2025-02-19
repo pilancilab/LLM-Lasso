@@ -1,0 +1,12 @@
+Context: We wish to build a machine learning model that can accurately predict whether a patient has diabetes (target variable), given several diagnostic measurements. The selected individuals in the cohort are female patients of Pima Indian heritage who are at least 21 years old. We measured a total of 8 clinical features (e.g., blood pressure, insulin). Prior to training the model, we first want to identify a subset of the 8 features that are most clinically important for reliable prediction of the target variable.
+
+Formatting: Each importance score must immediately follow the corresponding feature name after a double-asterisk-colon (**:**) and adhere to the following format:
+1. For each feature, produce an importance score from 0 to 1.
+2. List the features and their importance scores in the exact same order they appear in the list.
+3. For each importance score, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to the target variable.
+
+Here is an example output:
+**Year of Birth**: 0.1
+Reasoning: The year in which a defendant was born is not directly relevant to the likelihood of recidivism, and incorporating such information for model training may introduce unwanted biases. Therefore, the score is 0.1.
+
+Provide a score and reasoning for features “{genes}” formatted according to the output schema above:

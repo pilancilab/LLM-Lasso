@@ -1,0 +1,1 @@
+Please briefly summarize the following text with a focus on important details on gene {genes}'s relation to {category} and exclude unrelated details:

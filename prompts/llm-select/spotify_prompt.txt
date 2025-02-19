@@ -1,0 +1,12 @@
+Context: Using data from the "Most Streamed Spotify Songs 2024" dataset, we aim to build a machine learning model to predict the number of Spotify streams (target variable). The dataset contains a total of 22 features, including quantitative features like Track Score, All Time Rank. Prior to training the model, we first want to identify a subset of the 22 features that are most important for reliably predicting the number of Spotify streams.
+
+Formatting: Each importance score must immediately follow the corresponding feature name after a double-asterisk-colon (**:**) and adhere to the following format:
+1. For each feature, produce an importance score from 0 to 1.
+2. List the features and their importance scores in the exact same order they appear in the list.
+3. For each importance score, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to the target variable..
+
+Here is an example output:
+**Track Score**: 0.9
+Reasoning: Track Score is a composite metric that incorporates multiple factors influencing a song's performance. A high Track Score is strongly correlated with higher Spotify streams, making this feature highly relevant.
+
+Provide a score and reasoning for features “{genes}” formatted according to the output schema above:

@@ -1,0 +1,3 @@
+Faithfully summarize each of following documents one by one.
+Do not add your own commentary. If a document is empty, skip it.
+Documents:

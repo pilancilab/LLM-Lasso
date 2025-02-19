@@ -1,0 +1,49 @@
+**Context**: Using the Glioma Grading Clinical and Mutation Features dataset, we aim to build a machine learning model to predict the glioma grade (target variable) based on a variety of clinical and mutation features. The dataset contains a total of 23 features, including Gender, Age at Diagnosis, Race. Prior to training the model, we first want to identify a subset of the 8 features that are most clinically important for reliable prediction of the target variable.
+**Task**: Provide penalty factors for each of the features. These penalty factors should be integers between 2 and 5 (inclusive), where:
+2 indicates a feature strongly associated with the target variable (i.e., it should be penalized the least by Lasso).
+5 indicates a feature with minimal relevance to the target variable (i.e., it should be penalized the most by Lasso).
+Base these penalty factors on general feature relevance related to the target variable. Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each feature’s importance in predicting this target.
+**Instructions**:
+1. You will receive a list of features: {genes}.
+2. For each feature, produce an integer penalty factor from 2 to 5.
+3. List the features and their penalty factors in the exact same order they appear in the list.
+4. For each penalty factor, provide a brief statement of how you arrived at that score or why the feature is more or less relevant to the target variable.
+
+**Your Response**:
+Must contain one entry per feature, each entry including:
+- The feature name.
+- The penalty factor.
+- A succinct reasoning for that factor.
+Do not include disclaimers about lacking full data; rely on your domain knowledge.
+
+Here is an example output:
+**Gender**: 3.5
+Reasoning: While gender has some association with glioma incidence rates, its predictive power for glioma grading is moderate. Studies suggest slight variations in glioma biology between males and females, but it is not as strong a determinant of grade compared to other features, resulting in a score of 0.5.
+
+The list of features with their explanation is:
+
+"Gender": "Gender (0 = \"male\"; 1 = \"female\")",
+    "Age at diagnosis": "Age at diagnosis with the calculated number of days",
+    "Race": "Race  (0 = \"white\";  1 = \"black or african American\";  2 = \"asian\";  3 = \"american indian or alaska native\")",
+    "IDH1": "isocitrate dehydrogenase (NADP(+))1 (0 = NOT_MUTATED; 1= MUTATED)",
+    "TP53": "tumor protein p53 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "ATRX": "ATRX chromatin remodeler (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PTEN": "phosphatase and tensin homolog (0 = NOT_MUTATED; 1 = MUTATED)",
+    "EGFR": "epidermal growth factor receptor (0 = NOT_MUTATED; 1 = MUTATED)",
+    "CIC": "capicua transcriptional repressor (0 = NOT_MUTATED; 1 = MUTATED)",
+    "MUC16": "mucin 16, cell surface associated (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PIK3CA": "phosphatidylinositol-4,5-bisphosphate 3-kinase catalytic subunit alpha (0 = NOT_MUTATED; 1 = MUTATED)",
+    "NF1": "neurofibromin 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PIK3R1": "phosphoinositide-3-kinase regulatory subunit 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "FUBP1": "far upstream element binding protein 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "RB1": "RB transcriptional corepressor 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "NOTCH1": "notch receptor 1 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "BCOR": "BCL6 corepressor (0 = NOT_MUTATED; 1 = MUTATED)",
+    "CSMD3": "CUB and Sushi multiple domains 3 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "SMARCA4": "SWI/SNF related, matrix associated, actin dependent regulator of chromatin, subfamily a, member 4 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "GRIN2A": "glutamate ionotropic receptor NMDA type subunit 2A (0 = NOT_MUTATED; 1 = MUTATED)",
+    "IDH2": "isocitrate dehydrogenase (NADP(+)) 2 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "FAT4": "FAT atypical cadherin 4 (0 = NOT_MUTATED; 1 = MUTATED)",
+    "PDGFRA": "platelet-derived growth factor receptor alpha (0 = NOT_MUTATED; 1 = MUTATED)"
+
+The list of features is {genes}.
