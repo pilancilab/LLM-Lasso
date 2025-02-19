@@ -4,10 +4,13 @@ It also offers additional MimNumber processing functions for a partial specified
 Additionally, it provides a function to test the accessibility of the OMIM API.
 """
 
-import pickle
 
+import requests
+import pickle as pkl
+from constants import OMIM_KEYS
+from llm_lasso.utils.omim_number import *
 
-KEY = "" # API key for OMIM API
+KEY = OMIM_KEYS[0] # API key for OMIM API
 
 # Utility function
 def test_omim_api_access():
@@ -90,7 +93,7 @@ def collect_all_valid_mim_numbers(file_path, output_txt="omim_scrape/omim_all/va
 
     # Save the valid Mim numbers to a pickle file
     with open(output_pkl, "wb") as pkl_file:
-        pickle.dump(valid_mim_numbers, pkl_file)
+        pkl.dump(valid_mim_numbers, pkl_file)
 
     return valid_mim_numbers
 
@@ -132,82 +135,9 @@ def collect_all_gene_mim_numbers(file_path, output_txt="omim_scrape/omim_all/gen
 
     # Save the gene Mim numbers to a pickle file
     with open(output_pkl, "wb") as pkl_file:
-        pickle.dump(gene_mim_numbers, pkl_file)
+        pkl.dump(gene_mim_numbers, pkl_file)
 
     return gene_mim_numbers
-
-# 3. Collect subset of mimNumbers for a list of specific gene or phenotype.
-def get_mim_number(gene, quiet=False): 
-    """
-    Query OMIM API to fetch the mimNumber for a given gene or phenotype.
-    Args:
-        gene (str): hgnc gene name.
-    """
-    base_url = "https://api.omim.org/api/entry/search"
-    # Query string for 'search' parameter manually constructed
-    search_query = f"{gene}"  # Use the exact query format required by OMIM; consider enhancement with f"+{gene}+gene"
-
-    # Remaining parameters
-    params = {
-        "start": 0,
-        "sort": "score desc",
-        "limit": 1,
-        "apiKey": KEY,
-        "format": "xml",  # Ensure the response is in XML format
-    }
-
-    # Manually append the 'search' query to the URL
-    full_url = f"{base_url}?search={search_query}"
-
-    try:
-        # Send the HTTP GET request
-        response = requests.get(full_url, params=params)
-        response.raise_for_status()
-
-        # Parse the XML response
-        root = Tree.fromstring(response.text)
-
-        # Locate the mimNumber in the response
-        mim_number_element = root.find(".//mimNumber")
-        if mim_number_element is not None:
-            return mim_number_element.text
-        else:
-            if not quiet:
-                print(f"No mimNumber found for gene/phenotype: {gene}")
-            return None
-    except requests.exceptions.RequestException as e:
-        if not quiet:
-            print(f"Error fetching mimNumber for gene/phenotype {gene}: {e}")
-        return None
-
-
-def get_specified_mim(file_path, save_path = 'Mim_specific.pkl', description = False):
-    """
-    Fetch mimNumbers for a specified list of genes/phenotypes and return as a dictionary.
-
-    Args:
-        file_path (path to the pkl file)
-        description (bool)
-    Return:
-        dictionary
-    """
-    mim_numbers = {}
-    ls = []
-    with open(file_path, "rb") as file:
-        gene_list = pkl.load(file)
-    for gene in tqdm(gene_list, desc="Processing"):
-        if description:
-            print(f"Fetching mimNumber for gene/phenotype: {gene}...")
-        mim_number = get_mim_number(gene)
-        if mim_number:
-            mim_numbers[gene] = mim_number
-            ls.append(mim_number)
-        time.sleep(0.1)
-    with open(save_path, "wb") as file:
-        pkl.dump(ls, file)
-    return mim_numbers
-
-
 
 
 # if __name__ == "__main__":
@@ -215,7 +145,7 @@ def get_specified_mim(file_path, save_path = 'Mim_specific.pkl', description = F
     # test_omim_api_access()
 
     # # 2. test fetching mimNumber for a single gene
-    # num = get_mim_number('ABHD6')
+    # num = get_mim_number('ABHD6', KEY)
     # print(num)
 
     # # 3. test fetching mimNumber for a list of genes

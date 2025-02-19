@@ -4,27 +4,12 @@ Process PubMed RAG retrieval results through Langchain's PubMed tool focusing on
 (2). Information of the phenotype concerned in the domain of its known relation with certain genes;
 (3). Interaction between each gene and each phenotype concerned.
 """
-import os
 from langchain_community.tools.pubmed.tool import PubmedQueryRun
-from langchain_openai import ChatOpenAI
-from langchain.docstore.document import Document
-from langchain.schema import SystemMessage, HumanMessage
 from utils.score_collection import *
-from openai import OpenAI
-import time
-from langchain_core.rate_limiters import InMemoryRateLimiter
+from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
 
 
-rate_limiter = InMemoryRateLimiter(
-    requests_per_second=1,
-    check_every_n_seconds=0.1,
-    max_bucket_size=10,
-)
-
-os.environ["OPENAI_API_KEY"] = "YOUR API KEY HERE"  # Set OpenAI API key
-client = OpenAI()
-llm = ChatOpenAI(model="gpt-4o", temperature=0.5, rate_limiter=rate_limiter)
-tool = PubmedQueryRun()
+pubmed_tool = PubmedQueryRun()
 
 ################################## Helper Functions ##################################
 def parse_category_strings(input_string):
@@ -44,6 +29,7 @@ def parse_category_strings(input_string):
     else:
         raise ValueError("Input string must contain exactly one 'and' separating two category names.")
 
+
 def get_pubmed_prompts():
     ls = ["cat","gene","interact"]
     all_r = [] # retrieval
@@ -55,6 +41,7 @@ def get_pubmed_prompts():
         all_s.append(dir)
     return all_r, all_s
 
+
 def pubmed_retrieval_filter(text):
     """
     :param text: str
@@ -64,6 +51,7 @@ def pubmed_retrieval_filter(text):
         return ""
     else:
         return text
+
 
 def fill_prompt(category, prompt_dir):
     with open(prompt_dir, "r", encoding="utf-8") as file:
@@ -77,47 +65,36 @@ def fill_prompt(category, prompt_dir):
     )
     return filled_prompt
 
-def summarize_retrieval(gene, cat, ret, model, sum_prompt):
-    time.sleep(1)
-    print("Pubmed: Summarizing")
+
+def summarize_retrieval(
+    gene: str,
+    cat: str,
+    ret: str,
+    model: LLMQueryWrapperWithMemory,
+    sum_prompt: str
+):
     if ret == "":
         return ret
+    
     if gene:
         full_prompt = f'{create_general_prompt(sum_prompt, cat, gene)} {ret}'
     else:
         full_prompt = f'{fill_prompt(cat, sum_prompt)} {ret}'
-    if ret != "":
-        doc1 = Document(page_content=ret)
-        if model == "o1":
-            msg1 = [
-                {
-                    "role": "assistant",
-                    "content": full_prompt
-                }
-            ]
-            completion = client.chat.completions.create(
-                model="o1",
-                messages=msg1
-            )
-            ret = completion.choices[0].message.content # update ret1
-        elif model == "gpt-4o":
-            msg1 = [
-                SystemMessage(content="You are an expert in cancer genomics and bioinformatics."),
-                HumanMessage(content=full_prompt)
-            ]
-            ret = llm.invoke(msg1).content
-        else:
-            print("Model must either be 'gpt-4o' or 'o1'.")
-            sys.exit(-1)
-    return ret
+    
+    return model.query(
+        system_message="You are an expert in cancer genomics and bioinformatics.",
+        full_prompt=full_prompt,
+        sleep_time=1
+    )
 
 #################################### Main Function ##################################
 
 # now assume binary classification - can extend to k class.
 # collective retrieval function over three combinations: complexity = k+kg+g
 def pubmed_retrieval(
-    gene, category, model, retrieve_category = False,
-    retrieve_genes = False, retrieve_interactions = True
+    gene: str, category: str, model: LLMQueryWrapperWithMemory,
+    retrieve_category = False, retrieve_genes = False,
+    retrieve_interactions = True
 ):
     cat1, cat2 = parse_category_strings(category)
     s = []
@@ -133,7 +110,7 @@ def pubmed_retrieval(
                 pass
             # Category prompts
             temp1 = fill_prompt(cat1, p)
-            ret1 = pubmed_retrieval_filter(tool.invoke(temp1))
+            ret1 = pubmed_retrieval_filter(pubmed_tool.invoke(temp1))
             # Check if we have already seen this exact result
             if ret1 not in seen_documents:
                 seen_documents.add(ret1)
@@ -141,7 +118,7 @@ def pubmed_retrieval(
                 s.append(ret1_summary)
 
             temp2 = fill_prompt(cat2, p)
-            ret2 = pubmed_retrieval_filter(tool.invoke(temp2))
+            ret2 = pubmed_retrieval_filter(pubmed_tool.invoke(temp2))
             if ret2 not in seen_documents:
                 seen_documents.add(ret2)
                 ret2_summary = summarize_retrieval(None, cat2, ret2, model, prompts_s[0])
@@ -154,7 +131,7 @@ def pubmed_retrieval(
             for g_ in gene:
                 temp1 = fill_prompt(g_, p)
                 print("Pubmed: retrieving")
-                ret1 = pubmed_retrieval_filter(tool.invoke(temp1))
+                ret1 = pubmed_retrieval_filter(pubmed_tool.invoke(temp1))
                 if ret1 not in seen_documents:
                     seen_documents.add(ret1)
                     ret1_summary = summarize_retrieval(None, g_, ret1, model, prompts_s[1])
@@ -166,14 +143,14 @@ def pubmed_retrieval(
             # Pair interaction (feature and class)
             for g_ in gene:
                 temp1 = create_general_prompt(p, cat1, g_)
-                ret1 = pubmed_retrieval_filter(tool.invoke(temp1))
+                ret1 = pubmed_retrieval_filter(pubmed_tool.invoke(temp1))
                 if ret1 not in seen_documents:
                     seen_documents.add(ret1)
                     ret1_summary = summarize_retrieval(g_, cat1, ret1, model, prompts_s[2])
                     s.append(ret1_summary)
 
                 temp2 = create_general_prompt(p, cat2, g_)
-                ret2 = pubmed_retrieval_filter(tool.invoke(temp2))
+                ret2 = pubmed_retrieval_filter(pubmed_tool.invoke(temp2))
                 if ret2 not in seen_documents:
                     seen_documents.add(ret2)
                     ret2_summary = summarize_retrieval(g_, cat2, ret2, model, prompts_s[2])
@@ -181,12 +158,3 @@ def pubmed_retrieval(
 
     # Return a joined string of all non-empty summaries
     return "\n\n".join(t for t in s if t)
-
-
-# Example usage
-if __name__ == "__main__":
-    input_str = "Acute myocardial infarction (AMI)  and diffuse large B-cell lymphoma (DLBCL)"
-    gene = ["AASS", "CLEC4D"]
-    # result1, result2 = parse_category_strings(input_str)
-    # print(result1, result2)
-    print(pubmed_retrieval(gene, input_str, "gpt-4o"))

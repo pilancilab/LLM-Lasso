@@ -1,55 +1,40 @@
-"""
-Memory-retained hybrid RAG GPT model queried through OpenAI API
-"""
 
-import os
-import warnings
-from tqdm import tqdm
-# from langchain_community.chat_models import ChatOpenAI
-from langchain_openai import ChatOpenAI
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain.memory import ConversationSummaryBufferMemory
-from langchain.schema import SystemMessage, HumanMessage
-from Expert_RAG.utils import *
-from Expert_RAG.helper import *
-import logging
-import time
-import json
 from pydantic import BaseModel
-from openai import OpenAI
-from Expert_RAG.omim_RAG_process import *
-from Expert_RAG.pubMed_RAG_process import pubmed_retrieval
-# from Expert_RAG.o1 import O1 # if one uses RAG via o1
+from dataclasses import dataclass, field
+from langchain_community.vectorstores import Chroma
+from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
+from llm_lasso.utils.score_collection import create_general_prompt, extract_scores_from_responses, \
+    save_responses_to_file, save_scores_to_pkl, create_json_prompt
+from llm_lasso.utils.data import convert_pkl_to_txt
+from llm_lasso.llm_penalty.rag.rag_context import get_rag_context
+import os
+import logging
+import json
+import numpy as np
+from tqdm import tqdm
 
-from Expert_RAG.rag_context import get_rag_context
 
+@dataclass
+class PenaltyCollectionParams:
+    batch_size: int = field(default=30)
+    n_trials: int = field(default=1)
+    wipe: bool = field(default=False)
+    summarized_gene_doc_rag: bool = field(default=False)
+    filtered_cancer_doc_rag: bool = field(default=False)
+    pubmed_rag: bool = field(default=False)
+    default_rag: bool = field(default=True)
+    retry_limit: int = field(default=10)
+    default_num_docs: int = field(default=3)
+    enable_memory: bool = field(default=True)
+    small: bool = field(default=False)
+    memory_size: int = field(default=200)
+    shuffle: bool = field(default=False)
 
-warnings.filterwarnings("ignore")  # Suppress warnings
-os.environ["OPENAI_API_KEY"] = "YOUR KEY HERE"
-
-# Define paths and settings
-# persist_directory = "omim_scrape/omim_all/persist_omim_chunked"  # Vector store path
-data_file = "DATABASE LOCATION"  # Path to JSON data file
-PERSIST = True  # Enable persistence
-
-# Initialize embeddings
-embeddings = OpenAIEmbeddings()
-
-# create new directory using chunked_GPT!!!
-persist_directory = "DATABASE_DIRECTORY" # "omim_scrape/omim_all/persist_omim_chunked" #  # Vector store path
-
-# Initialize vector store and embeddings
-if os.path.exists(persist_directory):
-    print("Reusing existing combined database...")
-    vectorstore = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
-else:
-    raise FileNotFoundError(f"Vector store not found at {persist_directory}. Ensure data is preprocessed and saved.")
-
-#retriever = vectorstore.as_retriever(search_kwargs={"k": 10}) # Retrieve top 8 most relevant chunks
-llm_model = ChatOpenAI(model="gpt-4o", temperature=0.5)
-
-openai_client = OpenAI()
+    def has_rag(self):
+        return self.summarized_gene_doc_rag or \
+            self.filtered_cancer_doc_rag or \
+            self.pubmed_rag or \
+            self.default_rag
 
 
 class Score(BaseModel):
@@ -62,13 +47,21 @@ class GeneScores(BaseModel):
     scores: list[Score]
 
 
-def wipe_RAG(save_dir):
-    files_to_remove = [
-        "results_RAG.txt",
-        "gene_scores_RAG.pkl",
-        "gene_scores_RAG.txt",
-        "trial_scores_RAG.json",
-    ]
+def wipe_llm_penalties(save_dir, rag: bool):
+    if rag:
+        files_to_remove = [
+            "results_RAG.txt",
+            "fial_scores_RAG.pkl",
+            "final_scores_RAG.txt",
+            "trial_scores_RAG.json"
+        ]
+    else:
+        files_to_remove = [
+            "results_plain.txt",
+            "fial_scores_plain.pkl",
+            "final_scores_plain.txt",
+            "trial_scores_plain.json",
+        ]
     for file_name in files_to_remove:
         file_path = os.path.join(save_dir, file_name)
         if os.path.exists(file_path):
@@ -76,47 +69,32 @@ def wipe_RAG(save_dir):
             logging.info(f"Removed file: {file_path}")
 
 
-def hybrid_chain_GPT(
-    category, genenames, prompt_dir="prompts/prompt_file.txt", save_dir="LLM_score/debug",
-    vectorstore=vectorstore, chat=llm_model, batch_size=30, n_trials=1, save_retrieved=False, final_batch=False,
-    wipe=False, summarized_gene_docs=False, filtered_cancer_docs=False, pubmed_docs=False, original_docs=False,
-    retry_limit=10, temp=0.5, original_rag_k=3, memory_size=200, model_type="gpt4-o", reweight=False
+def collect_penalties(
+    category: str,
+    feature_names: list[str],
+    prompt_file: str,
+    save_dir: str,
+    vectorstore: Chroma,
+    model: LLMQueryWrapperWithMemory,
+    params: PenaltyCollectionParams,
+    omim_api_key: str = "",
+    json_data=None
 ):
-    """
-    Hybrid RAG chain combined with batch processing for large queries, integrating memory-enhanced context.
-    This implementation calculates the final scores as an average across trials.
-
-    Args:
-        category (str): The category or context for the query.
-        genenames (list[str]): List of gene names.
-        prompt_dir (str): Path to the prompt file.
-        vectorstore: VectorStore for retrieval.
-        chat: LLM model for querying.
-        batch_size (int): Number of genes to process per batch.
-        n_trials (int): Number of trials to run.
-        save_retrieved (bool): Whether to save retrieved documents.
-        final_batch (bool): Indicator for saving the final batch of documents.
-        save_dir (str): Directory to save the trial scores.
-        wipe (bool): If True, wipe all files in save_dir before starting.
-
-    Returns:
-        list[dict]: Trial scores.
-        list[float]: Final averaged scores.
-    """
-    if wipe:
+    if params.wipe:
         logging.info("Wiping save directory before starting.")
         print("Wiping save directory before starting.")
-        wipe_RAG(save_dir)
+        wipe_llm_penalties(save_dir, params.has_rag())
+    
+    total_features = len(feature_names)
+    print(f"Processing {total_features} features...")
 
-    total_genes = len(genenames)
-    print(f"Processing {total_genes} features...")
-    trial_scores = []
+    rag_or_plain = "RAG" if params.has_rag() else "plain"
 
     # Ensure save directory exists
     os.makedirs(save_dir, exist_ok=True)
-    trial_scores_file = os.path.join(save_dir, "trial_scores_RAG.json")
+    trial_scores_file = os.path.join(save_dir, f"trial_scores_{rag_or_plain}.json")
 
-    # Load existing progress if the file already exists
+     # Load existing progress if the file already exists
     if os.path.exists(trial_scores_file):
         with open(trial_scores_file, "r") as json_file:
             trial_scores = json.load(json_file)
@@ -125,159 +103,121 @@ def hybrid_chain_GPT(
     start_trial = len(trial_scores)
 
     results = []
-
+    trial_scores = []
     trial = start_trial
-    while trial < n_trials:
-        idxs = np.arange(len(genenames))
-        # np.random.shuffle(idxs)
 
-        logging.info(f"Starting trial {trial + 1}/{n_trials}")
+    while trial < params.n_trials:
+        # maybe shuffle the feature names
+        idxs = np.arange(len(feature_names))
+        if params.shuffle:
+            np.random.shuffle(idxs)
+
+        logging.info(f"Starting trial {trial + 1} out of {params.n_trials}")
         batch_scores = []
 
-        best = []
+        if params.enable_memory:
+            model.start_memory()
 
-        for start_idx in tqdm(range(0, total_genes, batch_size), desc=f"Processing trial {trial + 1}..."):
-            end_idx = min(start_idx + batch_size, total_genes)
-            batch_genes = [genenames[i] for i in idxs[start_idx:end_idx]]
+        # loop through batches of genes
+        for start_idx in tqdm(range(0, total_features, params.batch_size), desc=f"Processing trial {trial + 1}..."):
+            end_idx = min(start_idx + params.batch_size, total_features)
+            batch_features = [feature_names[i] for i in idxs[start_idx:end_idx]]
+            upper_batch_names = [n.upper() for n in batch_features]
 
-            # Construct query for the batch
-            query = create_general_prompt(prompt_dir, category, batch_genes)
-
-            # get documents for RAG
-            context = get_rag_context(
-                batch_genes, category, vectorstore, chat, model_type,
-                pubmed_docs=pubmed_docs, filtered_cancer_docs=filtered_cancer_docs,
-                summarized_gene_docs=summarized_gene_docs, original_docs=original_docs,
-                orig_doc_k=original_rag_k
-            )
-            
-            # if save_retrieved:
-            #     output_dir = f'retrieval_docs/test/RAG/final_batch' if final_batch else f'retrieval_docs/test/RAG/batch{start_idx + 1}'
-            #     os.makedirs(output_dir, exist_ok=True)
-            #     for idx, doc in enumerate(unique_docs):
-            #         file_name = f"{'weights_doc' if final_batch else 'doc'}_{idx + 1}.txt"
-            #         file_path = os.path.join(output_dir, file_name)
-            #         with open(file_path, "w", encoding="utf-8") as file:
-            #             file.write(doc.page_content)  # Save document content
-            #             file.write("\n\nMetadata:\n")
-            #             file.write(str(doc.metadata))
-
-            # Retrieve memory context
-            if model_type != "o1":
-                memory = ConversationSummaryBufferMemory(llm=chat, max_token_limit=memory_size)
-                memory_context = memory.load_memory_variables({})
-                full_context = memory_context.get("history", "")
+            # Construct the query for this batch of features
+            if json_data is None:
+                query = create_general_prompt(prompt_file, category, batch_features)
             else:
-                full_context=""
+                query = create_json_prompt(prompt_file, batch_features, json_data)
 
-            if context.strip() != "":
-                full_prompt = f"{full_context}\n\nUsing the following context, provide the most accurate and relevant answer to the question. " \
+            # If we're performing RAG, get the RAG context
+            context = get_rag_context(
+                batch_features, category, vectorstore,
+                model, omim_api_key,
+                pubmed_docs=params.pubmed_rag,
+                filtered_cancer_docs=params.filtered_cancer_doc_rag,
+                summarized_gene_docs=params.summarized_gene_doc_rag,
+                original_docs=params.default_rag,
+                default_num_docs=params.default_num_docs,
+                small=params.small,
+            )
+
+            # Construct the prompt
+            if context != "":
+                full_prompt = f"Using the following context, provide the most accurate and relevant answer to the question. " \
                               f"Prioritize the provided context, but if the context does not contain enough information to fully address the question, " \
                               f"use your best general knowledge to complete the answer:\n\n{context}\n\nQuestion: {query}"
-
             else:
                 # Fallback to general knowledge
-                full_prompt = f"{full_context}\n\nUsing your best general knowledge, provide the most accurate and relevant answer to the question:\n\nQuestion: {query}"
+                full_prompt = f"Using your best general knowledge, provide the most accurate and relevant answer to the question:\n\nQuestion: {query}"
+            system_message = "You are an expert assistant with access to gene and cancer knowledge."
 
-            messages = [
-                {"role": "system", "content": "You are an expert assistant with access to gene and cancer knowledge."},
-                {"role": "user", "content": full_prompt}
-            ]
-
-            time.sleep(1)
-            print("Querying GPT")
-            if model_type != "o1":
-                completion = openai_client.beta.chat.completions.parse(
-                    model=model_type,
-                    messages=messages,
-                    response_format=GeneScores,
-                    temperature=temp
+            # Query the LLM, with special handling if the LLM allows
+            # structured queries
+            if model.has_structured_output():
+                gene_scores: GeneScores = model.structured_query(
+                    system_message=system_message,
+                    full_prompt=full_prompt,
+                    response_format_class=GeneScores,
+                    sleep_time=1,
                 )
-            else:
-                completion = openai_client.beta.chat.completions.parse(
-                    model=model_type,
-                    messages=messages,
-                    response_format=GeneScores,
-                )
-            time.sleep(1)
-
-
-            gene_scores = completion.choices[0].message.parsed
-            results.append(gene_scores.model_dump_json())
-
-            upper_batch_names = [n.upper() for n in batch_genes]
-            scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
-
-            genes_retrieved = set([score.gene for score in scores_list])
-            missing = set(batch_genes).difference(genes_retrieved)
-            n_retries = 0
-            while len(missing) > 0:
-                print(f"We are missing genes {missing}")
-                assert n_retries < retry_limit
-                n_retries += 1
-
-                # Optional delay to handle rate limits or avoid spamming
-                time.sleep(1)
-
-                if model_type != "o1":
-                    completion = openai_client.beta.chat.completions.parse(
-                        model=model_type,
-                        messages=messages,
-                        response_format=GeneScores,
-                        temperature=temp
-                    )
-                else:
-                    completion = openai_client.beta.chat.completions.parse(
-                        model=model_type,
-                        messages=messages,
-                        response_format=GeneScores,
-                    )
-
-                gene_scores = completion.choices[0].message.parsed
-                upper_batch_names = [n.upper() for n in batch_genes]
                 scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
+                genes_retrieved = set([score.gene.upper() for score in scores_list])
+                missing = set(upper_batch_names).difference(genes_retrieved)
 
-                genes_retrieved = set([score.gene for score in scores_list])
-                missing = set(batch_genes).difference(genes_retrieved)
+                # Retry logic for score validation
+                n_retries = 0
+                while len(missing) > 0:
+                    logging.warning(f"We are missing genes {missing}")
+                    assert n_retries < params.retry_limit
+                    n_retries += 1
 
+                    gene_scores: GeneScores = model.maybe_retry_last(sleep_time=1)
+                    scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
+                    genes_retrieved = set([score.gene.upper() for score in scores_list])
+                    missing = set(upper_batch_names).difference(genes_retrieved)
+                
+                genes_to_scores = {
+                    score.gene: score.penalty_factor for score in gene_scores.scores
+                }
+                batch_scores_partial = [genes_to_scores[gene] for gene in batch_features]
+                output = gene_scores.model_dump_json()
+            else:
+                output = model.query(
+                    system_message=system_message,
+                    full_prompt=full_prompt,
+                    sleep_time=1,
+                )
 
-            genes_to_scores = {
-                score.gene: score.penalty_factor for score in gene_scores.scores
-            }
-            batch_scores_partial = [genes_to_scores[gene] for gene in batch_genes]
-            logging.info(f"Successfully retrieved valid scores for batch: {batch_genes}")
+                batch_scores_partial = extract_scores_from_responses(
+                    output if isinstance(output, list) else [output],
+                    batch_features
+                )
+
+                # Retry logic for score validation
+                while len([score for score in batch_scores_partial if score is not None]) != len(batch_features):
+                    logging.info(output)
+                    try:
+                        logging.warning(f"Batch scores count mismatch for genes {batch_features}. Retrying...")
+                        output = model.maybe_retry_last(sleep_time=1)
+                        batch_scores_partial = extract_scores_from_responses(
+                            output if isinstance(output, list) else [output],
+                            batch_features
+                        )
+                    except Exception as e:
+                        logging.error(f"Error during retry: {str(e)}. Continuing retry...")
+                # end retry while loop
+            # end structured output if/else
+
+            logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
             batch_scores.append(batch_scores_partial)
-            print(batch_scores_partial)
+            logging.info(batch_scores_partial)
+            model.maybe_add_to_memory(query, output)
+            results.append(output)
+        # end batches for loop
 
-            best_pair = min(genes_to_scores.items(), key=lambda x: x[1])
-            if reweight:
-                print(f"Best pair: {best_pair}")
-            best.append(best_pair)
-
-            # Save to memory
-            if model_type != "o1":
-                memory.save_context({"input": query}, {"output": str(gene_scores)})
-
-        weights = np.ones(len(batch_scores))
-        if reweight:
-            _, weights = hybrid_chain_GPT(
-                category, [x[0] for x in best], prompt_dir, save_dir + "/best",vectorstore, llm_model,
-                batch_size=len(best), n_trials=1, save_retrieved=False, final_batch=False,
-                wipe=wipe, summarized_gene_docs=summarized_gene_docs,
-                filtered_cancer_docs=filtered_cancer_docs, pubmed_docs=pubmed_docs,
-                original_docs=original_docs, retry_limit=retry_limit, temp=temp,
-                original_rag_k=original_rag_k, memory_size=memory_size, model_type=model_type,
-                reweight=False
-            )
-            weights = [weight / best_item[1] for (weight, best_item) in zip(weights, best)]
-
-        final_batch_scores = []
-        for (scores, weight) in zip(batch_scores, weights):
-            final_batch_scores.extend(list(np.array(scores) * weight))
-            
-        # Check if the trial scores match the total genes
-        if len(final_batch_scores) == total_genes:
-            trial_scores.append({"iteration": trial + 1, "scores": final_batch_scores})
+        if len(batch_scores) == total_features:
+            trial_scores.append({"iteration": trial + 1, "scores": batch_scores})
 
             # Incrementally save progress after each trial
             with open(trial_scores_file, "w") as json_file:
@@ -286,9 +226,9 @@ def hybrid_chain_GPT(
             logging.info(f"Trial {trial + 1} completed and saved.")
             trial += 1
         else:
-            logging.warning(f"Trial {trial + 1} scores length mismatch.")
-            sys.exit(1)
-        
+            logging.warning(f"Trial {trial + 1} scores length mismatch. Retrying...")
+        # end trial success if/else
+    # end trial for loop
 
     # Calculate final scores averaged across trials
     if trial_scores:
@@ -299,5 +239,17 @@ def hybrid_chain_GPT(
     logging.info(f"Final scores vector (averaged across trials) calculated with length: {len(final_scores)}")
 
     print(f"Trial scores saved to {trial_scores_file}")
+
+    # save penalties to file
+    results_file = os.path.join(save_dir, f"results_{rag_or_plain}.txt")
+    save_responses_to_file(results, results_file)
+
+    scores_pkl_file = os.path.join(save_dir, f"final_scores_{rag_or_plain}.pkl")
+    scores_txt_file = os.path.join(save_dir, f"final_scores_{rag_or_plain}.txt")
+    save_scores_to_pkl(final_scores, scores_pkl_file)
+    convert_pkl_to_txt(scores_pkl_file, scores_txt_file)
+
+    print(f"Results saved to {results_file}")
+    print(f"Scores saved to {scores_pkl_file} and {scores_txt_file}")
 
     return results, final_scores

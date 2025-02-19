@@ -9,9 +9,11 @@ import requests
 import xml.etree.ElementTree as Tree
 import pickle as pkl
 from tqdm import tqdm
+from constants import OMIM_KEYS
+from llm_lasso.utils.omim import fetch_omim_data, parse_omim_response
+
 
 # List of OMIM API keys
-API_KEYS = []
 REQUEST_LIMIT = 4000  # Maximum requests per API key
 key_index = 0  # Index of the current API key
 request_count = 0  # Track the number of requests for the current key
@@ -25,10 +27,10 @@ def get_api_key():
     """
     global key_index, request_count
     if request_count >= REQUEST_LIMIT:
-        key_index = (key_index + 1) % len(API_KEYS)
+        key_index = (key_index + 1) % len(OMIM_KEYS)
         request_count = 0
         print(f"Switching to API key {key_index + 1}")
-    return API_KEYS[key_index]
+    return OMIM_KEYS[key_index]
 
 
 def fetch_omim_data_with_key(mim_number):
@@ -42,62 +44,9 @@ def fetch_omim_data_with_key(mim_number):
     """
     global request_count
     api_key = get_api_key()
-    url = f"https://api.omim.org/api/entry"
-    params = {
-        "mimNumber": mim_number,
-        "include": "text,geneMap,clinicalSynopsis",
-        "format": "xml",
-        "apiKey": api_key,
-    }
-
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()  # Raise exception for unsuccessful status codes
-        request_count += 1
-        return response.text
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching data for MIM number {mim_number}: {e}")
-        print("Terminating program due to API failure.")
-        exit(1)
-
-
-def parse_omim_response(response_text):
-    """
-    Parse the OMIM XML response to extract text description, gene map, titles, and clinical synopsis.
-    Returns available data even if some fields are missing.
-    """
-    try:
-        root = Tree.fromstring(response_text)
-        entry = root.find(".//entry")
-
-        # Extract titles
-        preferred_title = entry.findtext(".//preferredTitle", default="Unknown Gene")
-        gene_symbols = entry.findtext(".//geneSymbols", default="Unknown Symbol").split(",")[0].strip()
-
-        # Extract text description
-        text_sections = entry.findall(".//textSection")
-        text_description = "\n\n".join(
-            f"{section.findtext('textSectionTitle', 'No Title')}:\n{section.findtext('textSectionContent', 'No Content')}"
-            for section in text_sections
-        ) if text_sections else "No Text Description Available"
-
-        # Extract gene map
-        gene_map = entry.find(".//geneMap")
-        gene_map_data = "\n".join(
-            f"{child.tag}: {child.text.strip()}" for child in gene_map if child.tag and child.text
-        ) if gene_map is not None else "No Gene Map Data Available"
-
-        # Extract clinical synopsis
-        clinical_synopsis = entry.find(".//clinicalSynopsis")
-        clinical_synopsis_data = "\n".join(
-            f"{child.tag}: {child.text.strip()}" for child in clinical_synopsis if child.tag and child.text
-        ) if clinical_synopsis is not None else "No Clinical Synopsis Available"
-
-        return gene_symbols, preferred_title, text_description, gene_map_data, clinical_synopsis_data
-
-    except Exception as e:
-        print(f"Error parsing response: {e}")
-        return None, None, None, None, None
+    txt = fetch_omim_data(mim_number, api_key)
+    request_count += 1
+    return txt
 
 
 def load_checkpoint(output_file):

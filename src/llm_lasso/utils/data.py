@@ -238,3 +238,14 @@ def load_feature_names(file_path):
             return [line.strip() for line in f]
     else:
         raise ValueError("Unsupported file format. Only .txt and .pkl are supported.")
+
+
+# convert pkl files to txt files
+def convert_pkl_to_txt(input_dir, output_dir):
+    with open(input_dir, 'rb') as pkl_file:
+        my_list = pickle.load(pkl_file)
+
+    # Save the content to a .txt file
+    with open(output_dir, 'w') as txt_file:
+        for item in my_list:
+            txt_file.write(str(item) + '\n')
