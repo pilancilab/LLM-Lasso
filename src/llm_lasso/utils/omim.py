@@ -1,3 +1,7 @@
+"""
+This script implements functions to fetch and process OMIM data for specified genes or phenotypes.
+"""
+
 import requests
 import xml.etree.ElementTree as Tree
 import pickle as pkl

@@ -1,145 +1,44 @@
+"""
+This script implements data processing functions for microarray genetic data used 
+in large-scale experiments as well as in the score saving and loading process.
+"""
+
 import numpy as np
 import pickle
 import json
 import pandas as pd
 import os
 
-# helper function for cleaning up genes1882.pkl
 def remove_suffix(s):
-    return s.split('_')[0]
-
-# process raw LLM txt outputs to dictionary
-def load_gene_importance(file_path):
-    gene_importance_dict = {}
-    
-    with open(file_path, "r") as file:
-        for line in file:
-            # Strip whitespace and split by ':' to get key and value
-            key_value = line.strip().split(":")
-            if len(key_value) == 2:  # Ensure there are exactly 2 elements
-                key = key_value[0].strip()  # The gene name
-                value = float(key_value[1].strip())  # The score, converted to a float
-                gene_importance_dict[key] = value    
-    return gene_importance_dict
-
-# save dictionary
-def save_dictionary_as_json(gene_importance_dict, file_path):
-    with open(file_path, 'w') as file:
-        pickle.dump(gene_importance_dict, file)
-
-# save list/array
-def save_list_as_pkl(gene_importance_ls, file_path):
-    with open(file_path, 'w') as json_file:
-        json.dump(gene_importance_ls, json_file, indent=4)
-
-# load json
-def load_dictionary_from_json(file_path):
-    with open(file_path, 'r') as json_file:
-        dictionary = json.load(json_file)
-    return dictionary
-
-# load list/array
-def load_dictionary_from_pkl(file_path):
-    with open(file_path, 'r') as file:
-        ls = pickle.load(file)
-    return ls
-
-
-# load values of dictionary as list (for loading importance score from dictionary)
-def importance_score(importance_dict):
-    return list(importance_dict.values())
-
-
-# load importance matrix for all cancer types (excluding heealthy control)
-def load_importance_matrix(directory):
-    # Define the order of the stacking based on the specified list
-    order = ['BL', 'CLL', 'DLBCL', 'FL', 'MCL', 'MM', 'PMBCL', 'TCL', 'cHL', 'tFL']
-    
-    # Initialize an empty list to store the importance data
-    importance_data = []
-    
-    # Iterate over the specified order
-    for label in order:
-        # Construct the file name based on the current label
-        filename = f"{label}_4omini_importance.json"
-        file_path = os.path.join(directory, filename)
-        
-        # Check if the file exists
-        if os.path.isfile(file_path):
-            # Load the JSON file
-            with open(file_path, 'r') as f:
-                data = json.load(f)  # Load data from JSON file
-                # Append the values from the dictionary to the list
-                if isinstance(data, dict):
-                    importance_data.append(list(data.values()))  # Convert dict values to list and append
-        else:
-            print(f"File not found: {file_path}")
-
-    # Create a DataFrame from the collected data
-    importance_matrix = pd.DataFrame(importance_data)
-    
-    # Return the DataFrame
-    return importance_matrix
-
-
-
-# the complete importance matrix with healthy (where it is calculated as the weighted average (could be contentious since we are using posteriori knowledge here) of the cancer importance scores.
-def calculate_weighted_importance(importance_matrix, yclass):
     """
-    Calculate the weighted average importance scores for the 'Healthy cfDNA' category
-    based on occurrences of the cancer types.
+    Remove the suffix (anything after and including the first underscore) from a string.
 
-    Parameters:
-    - importance_matrix: DataFrame containing importance scores stacked vertically according to category_order.
-    - yclass: ndarray of labels corresponding to the subjects.
+    Args:
+        s (str): Input string that may contain an underscore and suffix.
 
     Returns:
-    - Updated importance matrix with the 'Healthy cfDNA' weighted importance row appended.
+        str: The string with any trailing underscore and its suffix removed.
     """
-    unique_categories, class_counts = np.unique(yclass, return_counts=True)
-
-    # masking out healthy category in class_counts too
-    health_index = np.nonzero(unique_categories == 'Healthy cfDNA')[0][0]
-    cancer_counts = np.delete(class_counts, health_index)
-    # get the resulting weight
-    cancer_weight = cancer_counts/(np.sum(cancer_counts))
-
-    # health importance score
-    health_row = np.sum(importance_matrix * cancer_weight[:, np.newaxis], axis=0)
-    augmented_matrix = np.insert(importance_matrix, health_index, health_row, axis=0)
-
-    # create pd dataframe
-    augmented_matrix = pd.DataFrame(augmented_matrix)
-
-    return augmented_matrix
+    return s.split('_')[0]
 
 
-
-# weighted average array of cancer type sum
-def cancer_weighted(importance_matrix, yclass):
-    unique_categories, class_counts = np.unique(yclass, return_counts=True)
-
-    # masking out healthy category in class_counts too
-    health_index = np.nonzero(unique_categories == 'Healthy cfDNA')[0][0]
-    cancer_counts = np.delete(class_counts, health_index)
-    # get the resulting weight
-    cancer_weight = cancer_counts/(np.sum(cancer_counts))
-
-    # weighted importance score
-    weighted_row = np.sum(importance_matrix * cancer_weight[:, np.newaxis], axis=0)
-
-    return weighted_row
-
-
-
-# process npz file to eliminate duplicate measurement by taking average
 def process_npz_file(input_file_path, output_file_path):
     """
-    Processes an NPZ file by updating the genenames and xall arrays.
-    
+    Process an NPZ file of microarray gene data to eliminate duplicated measurements 
+    by taking the average of columns with the same (suffix-stripped) gene name.
+
+    Steps performed:
+        1. Alter gene names to eliminate subscripts (suffixes).
+        2. Group columns by the updated gene names and calculate the mean across duplicates.
+        3. Create new arrays for xall and genenames based on these combined columns.
+
     Args:
-    - input_file_path: Path to the input NPZ file.
-    - output_file_path: Path to save the modified NPZ file.
+        input_file_path (str): Path to the input NPZ file.
+        output_file_path (str): Path to save the modified NPZ file.
+
+    Returns:
+        dict: A dictionary containing the updated 'xall', 'yall', 'yclass', 
+              and 'genenames' arrays.
     """
     # Load the NPZ file
     data = np.load(input_file_path, allow_pickle=True)
@@ -164,47 +63,62 @@ def process_npz_file(input_file_path, output_file_path):
     # Preparing the new data to save
     new_data = {
         'xall': new_xall,
-        'yall': data['yall'],  # Keep yall unchanged
+        'yall': data['yall'],    # Keep yall unchanged
         'yclass': data['yclass'],  # Keep yclass unchanged
         'genenames': new_genenames
     }
 
     # Save the new data as an NPZ file
     np.savez(output_file_path, **new_data)
-
     print(f"Processed data saved to: {output_file_path}")
 
     return new_data
 
 
-def load_scores_from_txt(file_path):
+def save_dictionary_as_json(gene_importance_dict, file_path):
     """
-    Load scores from a .txt file into a list.
+    Save a dictionary to a JSON file.
 
-    Parameters:
-        file_path (str): Path to the .txt file containing scores (one per line).
+    Args:
+        gene_importance_dict (dict): Dictionary containing gene importance data.
+        file_path (str): Path to the output JSON file.
+    """
+    with open(file_path, 'w') as json_file:
+        json.dump(gene_importance_dict, json_file, indent=4)
+
+
+def save_list_as_pkl(gene_importance_ls, file_path):
+    """
+    Save a list to a pickle file.
+
+    Args:
+        gene_importance_ls (list): A list containing gene importance data.
+        file_path (str): Path to the output pickle file.
+    """
+    with open(file_path, 'wb') as pkl_file:
+        pickle.dump(gene_importance_ls, pkl_file)
+
+
+def load_dictionary_from_json(file_path):
+    """
+    Load a dictionary from a JSON file.
+
+    Args:
+        file_path (str): Path to the JSON file.
 
     Returns:
-        List[float]: A list of scores.
+        dict: The dictionary loaded from the JSON file.
     """
-    scores = []
-    try:
-        with open(file_path, 'r') as file:
-            for line in file:
-                # Strip whitespace and convert the line to a float
-                scores.append(float(line.strip()))
-    except ValueError:
-        print("Error: The file contains non-numeric data.")
-    except FileNotFoundError:
-        print(f"Error: File not found at {file_path}.")
-    return scores
+    with open(file_path, 'r') as json_file:
+        dictionary = json.load(json_file)
+    return dictionary
 
 
 def save_genenames_to_txt(genenames, file_path):
     """
     Save a list of gene names to a .txt file.
 
-    Parameters:
+    Args:
         genenames (list): List of gene names to save.
         file_path (str): Path to the .txt file where the gene names will be saved.
 
@@ -220,15 +134,71 @@ def save_genenames_to_txt(genenames, file_path):
         print(f"An error occurred: {e}")
 
 
+def load_dictionary_from_pkl(file_path):
+    """
+    Load a dictionary (or other Python object) from a pickle file.
+
+    Args:
+        file_path (str): Path to the pickle file.
+
+    Returns:
+        Any: The object loaded from the pickle file (commonly a dictionary).
+    """
+    with open(file_path, 'rb') as file:
+        data = pickle.load(file)
+    return data
+
+
+def load_scores_from_dict(importance_dict):
+    """
+    Load scores from a dictionary by extracting its values into a list.
+
+    Args:
+        importance_dict (dict): Dictionary where values represent scores.
+
+    Returns:
+        list: List of scores extracted from the dictionary's values.
+    """
+    return list(importance_dict.values())
+
+
+def load_scores_from_txt(file_path):
+    """
+    Load scores (floats) from a .txt file into a list.
+
+    Each line in the .txt file should contain a single numeric value.
+
+    Args:
+        file_path (str): Path to the .txt file containing scores.
+
+    Returns:
+        list: A list of scores (floats). If a line is not numeric, it will print an error.
+    """
+    scores = []
+    try:
+        with open(file_path, 'r') as file:
+            for line in file:
+                # Strip whitespace and convert the line to a float
+                scores.append(float(line.strip()))
+    except ValueError:
+        print("Error: The file contains non-numeric data.")
+    except FileNotFoundError:
+        print(f"Error: File not found at {file_path}.")
+    return scores
+
+
 def load_feature_names(file_path):
     """
     Load feature names from a .txt or .pkl file.
 
-    Parameters:
-    - file_path (str): Path to the file containing feature names.
+    Args:
+        file_path (str): Path to the file containing feature names.
 
     Returns:
-    - list: List of feature names.
+        list: List of feature names.
+    
+    Raises:
+        ValueError: If the file extension is not supported (not .txt or .pkl).
     """
     if file_path.endswith(".pkl"):
         with open(file_path, "rb") as f:
@@ -240,8 +210,17 @@ def load_feature_names(file_path):
         raise ValueError("Unsupported file format. Only .txt and .pkl are supported.")
 
 
-# convert pkl files to txt files
 def convert_pkl_to_txt(input_dir, output_dir):
+    """
+    Convert a pickle file (.pkl) containing a list into a .txt file.
+
+    Args:
+        input_dir (str): Path to the input .pkl file.
+        output_dir (str): Path to the output .txt file.
+
+    Returns:
+        None
+    """
     with open(input_dir, 'rb') as pkl_file:
         my_list = pickle.load(pkl_file)
 
