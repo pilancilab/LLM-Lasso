@@ -1,15 +1,16 @@
+"""
+This script implementes chunking for the .json file scraped down from Omim.
+"""
+
 import json
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from tqdm import tqdm
-# import fitz
 
-
-# Chunking .json file method 1: chunking by genes
+# Chunking omim json docs by attaching gene names and other metadata as metadata tags.
 def chunk_by_gene(json_file, output_file, chunk_size=1000, chunk_overlap=200):
     """
     Chunk long fields (textSection, clinicalSynopsis, and geneMapData) from JSON objects,
     and include "full_name" in the metadata.
-
     Args:
         json_file (str): Path to the input JSON file.
         output_file (str): Path to save the chunked JSON output.
