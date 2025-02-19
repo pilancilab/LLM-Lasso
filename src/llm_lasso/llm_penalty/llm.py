@@ -23,6 +23,10 @@ class LLMType(IntEnum):
 
 @dataclass
 class CachedQuery:
+    """
+    Cached query parameters for easy retries.
+    Used under the hood in `LLMQueryWrapperWithMemory`.
+    """
     system_message: str
     prompt: str
     sructured: bool = field(default=False)
@@ -30,6 +34,61 @@ class CachedQuery:
 
 
 class LLMQueryWrapperWithMemory:
+    """
+    Wrapper class for querying both OpenAI and OpenRouter LLMs, with support
+    for structured outputs, memory, and easy retries.
+
+    Usage Examples:
+        - Querying:
+        ```
+        model = LLMQueryWrapperWithMemory(
+            llm_type=LLMType.GPT4O,
+            llm_name="gpt-4o",
+            api_key="YOUR_KEY_HERE",
+            temperature=0.5,
+            top_p=0.5,
+        )
+        output_text = model.query(
+            system_message="You are a cancer expert.",
+            query="What genes are markers of breast cancer?",
+        )
+        ```
+
+        - Structured Queries (GPT-4o and o1 only):
+        ```
+        class GeneList(pydantic.BaseModel):
+            genes: list[str]
+        
+        model = ...
+        output_object = model.structured_query(
+            system_message="You are a cancer expert.",
+            full_prompt="What genes are markers of breast cancer?",
+            response_format_class=GeneList
+        )
+        ```
+
+        - Memory:
+        ```
+        model = ...
+        model.start_memory()
+        model.maybe_add_to_memory(query="your query here", output="LLM output")
+        output_text = model.query(
+            system_message="You are a cancer expert.",
+            full_prompt="What genes are markers of breast cancer?",
+        ) # memory is automatically applied here
+        model.disable_memory()
+        ```
+
+        - Retries:
+        ```
+        model = ...
+        output_text = model.query(
+            system_message="You are a cancer expert.",
+            full_prompt="What genes are markers of breast cancer?",
+        )
+        retried_output = model.retry_last()
+        ```
+    """
     def __init__(
         self,
         llm_type: int,
@@ -66,6 +125,9 @@ class LLMQueryWrapperWithMemory:
         self, memory_size, remember_outputs=True,
         default_output="Processing prompt, continuing from previous prompts"
     ):
+        """
+        Initialize memory, which will be used in all future queries until disabled.
+        """
         self.remember_outputs = remember_outputs
         self.default_output = default_output
         if self.llm_type != LLMType.O1:
@@ -73,9 +135,15 @@ class LLMQueryWrapperWithMemory:
             self.memory.clear()
 
     def disable_memory(self):
+        """
+        Disable memory for future queries
+        """
         self.memory = None
 
     def has_structured_output(self):
+        """
+        Are structured queries available?
+        """
         return self.llm_type == LLMType.GPT4O or self.llm_type == LLMType.O1
     
     def _maybe_get_memory(self):
@@ -85,6 +153,9 @@ class LLMQueryWrapperWithMemory:
         return memory_context.get("history", "")
     
     def maybe_add_to_memory(self, query, output):
+        """
+        If memory is currently enabled, add a query to the memory
+        """
         if self.memory == None:
             return
         if not self.remember_outputs:
@@ -95,6 +166,9 @@ class LLMQueryWrapperWithMemory:
         self, system_message, full_prompt, response_format_class,
         sleep_time: 0.1
     ):
+        """
+        Perform a query with a structured (i.e., python class) output
+        """
         assert self.has_structured_output()
         time.sleep(sleep_time)
         
@@ -127,8 +201,12 @@ class LLMQueryWrapperWithMemory:
         return completion.choices[0].message.parsed
     
     def query(self, system_message, full_prompt, sleep_time: 0.1):
+        """
+        Query the LLM with a system message and user prompt
+        """
         time.sleep(sleep_time)
 
+        # cache this query for possible retrying
         self.last = CachedQuery(
             system_message=system_message,
             prompt=full_prompt,
@@ -167,11 +245,14 @@ class LLMQueryWrapperWithMemory:
 
         return output
 
-    def maybe_retry_last(self, sleep_time=0.1):
+    def retry_last(self, sleep_time=0.1):
+        """
+        Retry the latest query
+        """
         if self.last is None:
             return ""
 
-        print("Retrying...")
+        print("Retrying latest query...")
         if self.last.sructured:
             return self.structured_query(
                 self.last.system_message,

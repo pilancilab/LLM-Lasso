@@ -3,10 +3,11 @@ from pydantic import BaseModel
 from dataclasses import dataclass, field
 from langchain_community.vectorstores import Chroma
 from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
-from llm_lasso.utils.score_collection import create_general_prompt, extract_scores_from_responses, \
+from llm_lasso.utils.score_collection import create_general_prompt, \
     save_responses_to_file, save_scores_to_pkl, create_json_prompt
 from llm_lasso.utils.data import convert_pkl_to_txt
 from llm_lasso.llm_penalty.rag.rag_context import get_rag_context
+from llm_lasso.llm_penalty.query_scores import query_scores_with_retries
 import os
 import logging
 import json
@@ -16,19 +17,38 @@ from tqdm import tqdm
 
 @dataclass
 class PenaltyCollectionParams:
-    batch_size: int = field(default=30)
-    n_trials: int = field(default=1)
-    wipe: bool = field(default=False)
-    summarized_gene_doc_rag: bool = field(default=False)
-    filtered_cancer_doc_rag: bool = field(default=False)
-    pubmed_rag: bool = field(default=False)
-    default_rag: bool = field(default=True)
-    retry_limit: int = field(default=10)
-    default_num_docs: int = field(default=3)
-    enable_memory: bool = field(default=True)
-    small: bool = field(default=False)
-    memory_size: int = field(default=200)
-    shuffle: bool = field(default=False)
+    """
+    Parameters for collecting penalty factors via LLM-Lasso
+    """
+    batch_size: int = field(default=30, metadata={
+        "help": "Number of genes to pass into the LLM at once"})
+    n_trials: int = field(default=1, metadata={
+        "help": "Number of trials to average over"})
+    wipe: bool = field(default=False, metadata={
+        "help": "Wipe the save directory before starting"})
+    retry_limit: int = field(default=10, metadata={
+        "help": "Maximum number of times to retry querying the LLM if not all genes are found"
+    })
+    summarized_gene_doc_rag: bool = field(default=False, metadata={
+        "help": "Whether to perform RAG with summarized OMIM docs for each gene"})
+    filtered_cancer_doc_rag: bool = field(default=False, metadata={
+        "help": "Whether to perform RAG with OMIM docs about the category, filtered for the relevant genes"
+    })
+    pubmed_rag: bool = field(default=False, metadata={
+        "help": "Whether to perform RAG with pubmed docs"})
+    default_rag: bool = field(default=True, metadata={
+        "help": "Whether to perform RAG with the default OMIM vector store"})
+    default_num_docs: int = field(default=3, metadata={
+        "help": "Number of documents to retrieve for `default_rag`"})
+    small: bool = field(default=False, metadata={
+        "help": "For LLMs with small context sizes, reduce the amount of informatio retrieved for `default_rag`"
+    })
+    enable_memory: bool = field(default=True, metadata={
+        "help": "Whether to pass memory of past queries into the LLM"})
+    memory_size: int = field(default=200, metadata={
+        "help": "Number of tokens in the memory"})
+    shuffle: bool = field(default=False, metadata={
+        "help": "Whether to shuffle the feature names for each trial"})
 
     def has_rag(self):
         return self.summarized_gene_doc_rag or \
@@ -37,17 +57,10 @@ class PenaltyCollectionParams:
             self.default_rag
 
 
-class Score(BaseModel):
-    gene: str
-    penalty_factor: float
-    reasoning: str
-
-
-class GeneScores(BaseModel):
-    scores: list[Score]
-
-
 def wipe_llm_penalties(save_dir, rag: bool):
+    """
+    Wipe save directory for LLM Lasso penalties
+    """
     if rag:
         files_to_remove = [
             "results_RAG.txt",
@@ -80,6 +93,24 @@ def collect_penalties(
     omim_api_key: str = "",
     json_data=None
 ):
+    """
+    Query features in batches and extract LLM-Lasso penalties.
+
+    Splits a list of features into batches, constructs prompts, and queries the selected LLM.
+    It also maintains conversation memory.
+
+    Parameters:
+    - `category`: The category or context for the query (e.g., "cancer type").
+    - `feature_names`: List of feature names,
+    - `prompt_file`: Path to the prompt file used for constructing queries.
+    - `save_dir`: Directory where results and scores will be saved.
+    - `vectorstore`: Chroma vectorstore for OMIM RAG.
+    - `model`: LLMQueryWrapperWithMemory object for performing queries
+    - `params`: PenaltyCollectionParams object
+    - `omim_api_key`: OMIM API key, only needed if
+        `params.summarized_gene_doc_rag` is True
+    - `json_data`: optional extra data for prompt construction
+    """
     if params.wipe:
         logging.info("Wiping save directory before starting.")
         print("Wiping save directory before starting.")
@@ -122,7 +153,6 @@ def collect_penalties(
         for start_idx in tqdm(range(0, total_features, params.batch_size), desc=f"Processing trial {trial + 1}..."):
             end_idx = min(start_idx + params.batch_size, total_features)
             batch_features = [feature_names[i] for i in idxs[start_idx:end_idx]]
-            upper_batch_names = [n.upper() for n in batch_features]
 
             # Construct the query for this batch of features
             if json_data is None:
@@ -154,60 +184,10 @@ def collect_penalties(
 
             # Query the LLM, with special handling if the LLM allows
             # structured queries
-            if model.has_structured_output():
-                gene_scores: GeneScores = model.structured_query(
-                    system_message=system_message,
-                    full_prompt=full_prompt,
-                    response_format_class=GeneScores,
-                    sleep_time=1,
-                )
-                scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
-                genes_retrieved = set([score.gene.upper() for score in scores_list])
-                missing = set(upper_batch_names).difference(genes_retrieved)
-
-                # Retry logic for score validation
-                n_retries = 0
-                while len(missing) > 0:
-                    logging.warning(f"We are missing genes {missing}")
-                    assert n_retries < params.retry_limit
-                    n_retries += 1
-
-                    gene_scores: GeneScores = model.maybe_retry_last(sleep_time=1)
-                    scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
-                    genes_retrieved = set([score.gene.upper() for score in scores_list])
-                    missing = set(upper_batch_names).difference(genes_retrieved)
-                
-                genes_to_scores = {
-                    score.gene: score.penalty_factor for score in gene_scores.scores
-                }
-                batch_scores_partial = [genes_to_scores[gene] for gene in batch_features]
-                output = gene_scores.model_dump_json()
-            else:
-                output = model.query(
-                    system_message=system_message,
-                    full_prompt=full_prompt,
-                    sleep_time=1,
-                )
-
-                batch_scores_partial = extract_scores_from_responses(
-                    output if isinstance(output, list) else [output],
-                    batch_features
-                )
-
-                # Retry logic for score validation
-                while len([score for score in batch_scores_partial if score is not None]) != len(batch_features):
-                    logging.info(output)
-                    try:
-                        logging.warning(f"Batch scores count mismatch for genes {batch_features}. Retrying...")
-                        output = model.maybe_retry_last(sleep_time=1)
-                        batch_scores_partial = extract_scores_from_responses(
-                            output if isinstance(output, list) else [output],
-                            batch_features
-                        )
-                    except Exception as e:
-                        logging.error(f"Error during retry: {str(e)}. Continuing retry...")
-                # end retry while loop
-            # end structured output if/else
+            batch_scores_partial, output = query_scores_with_retries(
+                model, system_message, full_prompt,
+                batch_features, params.retry_limit
+            )
 
             logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
             batch_scores.append(batch_scores_partial)
@@ -238,6 +218,7 @@ def collect_penalties(
 
     logging.info(f"Final scores vector (averaged across trials) calculated with length: {len(final_scores)}")
 
+    model.disable_memory()
     print(f"Trial scores saved to {trial_scores_file}")
 
     # save penalties to file

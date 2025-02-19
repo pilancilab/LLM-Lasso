@@ -17,75 +17,8 @@ import pandas as pd
 from sklearn.feature_selection import mutual_info_regression, RFE
 from sklearn.linear_model import LogisticRegression
 import random
-from llm_lasso.utils.data import load_feature_names
-import pickle
 import json
 from llm_lasso.data_splits import read_train_test_splits
-
-################################# Helpers #######################################
-
-def load_x_from_txt(file_path, gene_names):
-    """
-    Load feature matrix (X) from a .txt file and assign gene names as column names.
-
-    Each line in the file represents a p-dimensional vector (floats), with n lines total.
-
-    Parameters:
-    - file_path (str): Path to the .txt file containing the feature matrix.
-    - gene_names (list of str): List of gene names corresponding to each feature (column).
-
-    Returns:
-    - pd.DataFrame: n x p feature matrix (n samples, p features) with gene names as columns.
-    """
-
-    # Load data where each row is a p-dimensional vector
-    try:
-        data = pd.read_csv(file_path, header=None, delimiter=",", dtype=float)
-    except Exception as e:
-        raise ValueError(f"Error reading feature file {file_path}: {e}")
-
-    # Check if data is empty or improperly formatted
-    if data.empty:
-        raise ValueError(f"The feature file {file_path} is empty or improperly formatted.")
-
-    # Check if the number of gene names matches the number of columns
-    if len(gene_names) != data.shape[1]:
-        raise ValueError("The number of gene names does not match the number of features (columns) in the file.")
-
-    # Assign gene names as column names
-    data.columns = gene_names
-
-    return data
-
-
-def load_y_from_txt(file_path):
-    """
-    Load target variable (y) from a .txt file.
-
-    Each line in the file contains a single integer, with n lines total.
-
-    Parameters:
-    - file_path (str): Path to the .txt file containing the target variable.
-
-    Returns:
-    - pd.Series: n-dimensional target vector.
-    """
-    # Load data as a single-column DataFrame and ensure it’s an integer
-    try:
-        data = pd.read_csv(file_path, header=None, delimiter=",", dtype=int).squeeze("columns")
-    except Exception as e:
-        raise ValueError(f"Error reading target file {file_path}: {e}")
-
-    # Check if data is empty or improperly formatted
-    if data.empty:
-        raise ValueError(f"The target file {file_path} is empty or improperly formatted.")
-
-    # Check if data is single-dimensional
-    if len(data.shape) != 1:
-        raise ValueError(f"The target file {file_path} must contain a single integer per line.")
-
-    return data
-
 
 ######################## Data-Driven Feature Selection Baselines ######################################
 
@@ -205,7 +138,7 @@ def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42)
 
             for method in methods:
                 # Perform feature selection
-                X_selected, selected_features = feature_selector(X, y, method=method, k=k, random_state=random_state)
+                _, selected_features = feature_selector(X, y, method=method, k=k, random_state=random_state)
 
                 # Store results for this method and k value
                 if method not in results:
@@ -251,48 +184,5 @@ def run_all_baselines_for_splits(
         )
 
     print(f"All results saved in {save_dir}")
-
-
-#################################### Main Function ##############################
-if __name__ == "__main__":
-    #main()
-
-    # Create argument parser
-    parser = argparse.ArgumentParser(description="Run feature selection baselines across a range of k values.")
-
-    # Input arguments
-    parser.add_argument("--split_dir", type=str, required=True, help="Path to the all of the train_test_splits")
-    parser.add_argument("--n_splits", type=int, required=True, help="Number of splits in the dir")
-    parser.add_argument("--save_dir", type=str, required=True, help="Directory to save results.")
-    # Optional arguments
-    parser.add_argument("--min", type=int, default=0, help="Minimum k value for feature selection.")
-    parser.add_argument("--max", type=int, default=161, help="Maximum k value for feature selection.")
-    parser.add_argument("--step", type=int, default=160, help="Step size for k values.")
-    parser.add_argument("--random_state", type=int, default=42, help="Random seed for reproducibility.")
-
-    # Parse the arguments
-    args = parser.parse_args()
-
-    (x_train, _, y_train, _) = read_train_test_splits(args.split_dir, args.n_splits)
-
-    # Run the baseline function
-    run_all_baselines_for_splits(
-        x_train, y_train, args.save_dir, min=args.min, max=args.max, step=args.step, random_state=args.random_state)
-
-    # Example Command
-    """
-    PYTHONPATH=$(pwd) python baselines/data-driven.py \
-    --split_dir data/train_test_splits/FL \
-    --n_splits 10 \
-    --save_dir baselines/results/FL \
-    --random_state 42
-    """
-
-
-
-
-
-
-
 
 

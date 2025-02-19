@@ -18,7 +18,7 @@ from openai import OpenAI
 from Expert_RAG.omim_RAG_process import *
 from Expert_RAG.pubMed_RAG_process import pubmed_retrieval
 from adversarial.utils import replace_top, replace_random, insert_fake_names_into_context
-from baselines.llm_select import llm_score
+from llm_lasso.baselines.llm_score import llm_score
 import argparse
 
 

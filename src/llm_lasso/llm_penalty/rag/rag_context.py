@@ -21,6 +21,9 @@ def get_rag_context(
     default_num_docs = 3,
     small = False
 ):
+    """
+    Retrieve RAG context for gene data, combining three different RAG processes.
+    """
     context = ""
     skip_genes = set()
     if pubmed_docs:
