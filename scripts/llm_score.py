@@ -4,11 +4,9 @@ sys.path.append('.')
 import warnings
 import constants
 import os
-from llm_lasso.llm_penalty.penalty_collection import collect_penalties, PenaltyCollectionParams
 from llm_lasso.baselines.llm_score import llm_score
 from transformers.hf_argparser import HfArgumentParser
 from dataclasses import dataclass, field
-from langchain_community.vectorstores import Chroma
 import pickle as pkl
 from argparse_helpers import LLMParams
 warnings.filterwarnings("ignore")  # Suppress warnings
@@ -27,7 +25,7 @@ class Arguments:
     save_dir: str = field(metadata={
         "help": "Directory to save the results and scores."
     })
-    
+
     batch_size: int = field(default=30, metadata={
         "help": "Number of genes to pass into the LLM at once"})
     n_trials: int = field(default=1, metadata={
