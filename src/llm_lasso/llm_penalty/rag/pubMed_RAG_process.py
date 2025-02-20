@@ -47,7 +47,7 @@ def pubmed_retrieval_filter(text):
     :param text: str
     :return: str or None
     """
-    if text == "No good PubMed Result was found":
+    if text == "No good PubMed result was found":
         return ""
     else:
         return text
@@ -158,3 +158,14 @@ def pubmed_retrieval(
 
     # Return a joined string of all non-empty summaries
     return "\n\n".join(t for t in s if t)
+
+
+
+# if __name__ == "__main__":
+#     import constants
+#     import os
+
+#     os.environ["OPENAI_API_KEY"] = constants.OPENAI_API
+#     input_str = "Acute myocardial infarction (AMI)  and diffuse large B-cell lymphoma (DLBCL)"
+#     gene = ["AASS", "CLEC4D"]
+#     print(pubmed_retrieval(gene, input_str, "gpt-4o"))

@@ -1,17 +1,17 @@
 Using gene expression data obtained from lymphoma samples, we wish to
 build a statistical model that can accurately classify samples into
-subtypes of lymphoma[, namely chronic lymphocytic leukemia, Burkitt
+subtypes of lymphoma, namely chronic lymphocytic leukemia, Burkitt
 lymphoma, DLBCL, follicular lymphoma, transformed follicular lymphoma,
 mantle cell lymphoma, primary mediastinal large B cell lymphoma,
 Waldenstrom macroglobulinemia, multiple myeloma, transformed marginal
 zone lymphoma, and classic Hodgkin lymphoma, as well as a healthy
-control]. [The data consists of 437 samples with expression levels of
-1882 genes.] [The data is inferred gene expression from cfDNA
-fragmentation pattern (EPIC-Seq).] Prior to training the model, we first
+control. The data consists of 437 samples with expression levels of
+1882 genes. The data is inferred gene expression from cfDNA
+fragmentation pattern (EPIC-Seq). Prior to training the model, we first
 want to obtain feature importance scores to use in training our model,
 as specified above. Your task is to provide feature importance scores
-for each gene in predicting the lymphoma subtype[, based on your
-knowledge on lymphoma].
+for each gene in predicting the lymphoma subtype, based on your
+knowledge on lymphoma.
 
 We plan to use the scores with a lasso-regularized multinomial
 classifier, implemented via the R package 'glmnet". The scores will
@@ -60,7 +60,7 @@ cvfit3[[ii]]=cv.glmnet(xall2[otr,],yall[otr],foldid=foldid2,
 family="multinomial",type.measure="class",keep=TRUE,penalty.factor=pf)
 \# }) minerr[ii]=min(cvfit3[[ii]]\$cvm)
 
-} cutbest=cutlist[which.min(minerr)) #cutpoint with lowest cv error
+} cutbest=cutlist[which.min(minerr)] #cutpoint with lowest cv error
 iihat=which.min(minerr) #corresponding best model
 
 #finally use this "optimal" model to make predictions on test data
@@ -73,8 +73,17 @@ s=cvfit2[[iihat]]$lambda.min, family = c("multinomial"))$class
 
 #we'd like a model with low test error!
 
-The list of genes are below. Please generate just the gene names and the
-feature importance scores [for all of the genes] in a tab-delimited
-format as a txt file. [Please do not say you cannot do this task or
-generate a random feature importance scores, and do this to the best of
-your abilities based on expert domain knowledge.]
+Base these penalty factors on general gene relevance, known associations, and pathways in cancer genomics literature related to "{category}." Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each gene's importance in predicting this cancer type.
+**Explanation of Penalty Factors**: I would like you to provide penalty factors greater than or equal to 0 (excluding infinity) to use on each coefficient of a Lasso estimator based on domain knowledge for a regression or classification task. Suppose beta_k is the regression coefficient for feature k. We interpret Lasso with penalty factors lambda_k as yielding a maximum a posteriori estimate under Laplace priors with parameters lambda_k. This means that, before observing the data, the ratio of log-tail probabilities log P( \|beta_i\| \> t ) / log P( \|beta_j\| \> t ) is equal to lambda_i / lambda_j for each i,j for all t. Therefore, the penalty factors are relative log-tail-probabilities of coefficients. For example, if feature A has a penalty factor of lambda and feature B has a penalty factor of 2\*lambda, this means the log-likelihood that the absolute value of the regression coefficient for A exceeds any threshold is twice that of B. Thus, the larger the penalty factor is for a coefficient, the less "important" the coefficient is.
+**Instructions**:
+1. You will receive a list of genes: {genes}.
+2. For each gene, produce an integer penalty factor from 1 to 10.
+3. List the genes and their penalty factors in the exact same order they appear in the list.
+4. For each penalty factor, provide a brief statement of how you arrived at that factor or why the gene is more or less relevant to "{category}."
+**Your Response**:
+Must contain one entry per gene, each entry including:
+- The gene name.
+- The penalty factor.
+- A succinct reasoning for that factor.
+Do not include disclaimers about lacking full data; rely on general cancer genomics and pathway relevance.
+The list of genes is {genes}.
