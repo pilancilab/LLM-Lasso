@@ -5,7 +5,6 @@ Stores all used API keys and emails
 OPENAI_API = ""
 LANGCHAIN_API = ""
 EMAIL = ""
-TOGETHER_API = ""
 OPEN_ROUTER = ""
 OMIM_KEYS = [
     ""
