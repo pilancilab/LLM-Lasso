@@ -8,7 +8,7 @@ Additionally, it provides a function to test the accessibility of the OMIM API.
 import requests
 import pickle as pkl
 from constants import OMIM_KEYS
-from llm_lasso.utils.omim_number import *
+from llm_lasso.utils.omim import *
 
 KEY = OMIM_KEYS[0] # API key for OMIM API
 
@@ -144,22 +144,18 @@ def collect_all_gene_mim_numbers(file_path, output_txt="omim_scrape/omim_all/gen
     # # 1. ensure API access is functional
     # test_omim_api_access()
 
-    # # 2. test fetching mimNumber for a single gene
-    # num = get_mim_number('ABHD6', KEY)
-    # print(num)
-
-    # # 3. test fetching mimNumber for a list of genes
+    # # 2. test fetching mimNumber for a list of genes
     # file_path = 'omim_scrape/genes1592.pkl' # path to the pkl file containing gene names
     # mim_dict = get_specified_mim(file_path)
     # print(mim_dict)
 
-    # # 4. Scrape mimNumbers.
+    # # 3. Scrape mimNumbers.
     # file_path = 'omim_scrape/mim2gene.txt'
     # valid_mim_numbers = collect_all_valid_mim_numbers(file_path)
     # print(len(valid_mim_numbers))
     # gene_numbers = collect_all_gene_mim_numbers(file_path)
     # print(len(gene_numbers))
 
-    # # 5. scrape and parse contents to json file for collected mimNumbers.
+    # # 4. scrape and parse contents to json file for collected mimNumbers.
     # # see omim_all.py
 

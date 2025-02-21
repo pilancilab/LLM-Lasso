@@ -53,31 +53,55 @@ def get_mim_number(gene, api_key, quiet=False):
         return None
 
 
-def get_specified_mim(file_path, save_path = 'Mim_specific.pkl', description = False):
+def get_specified_mim(file_path, save_path='specific_mim.pkl', description=False):
     """
-    Fetch mimNumbers for a specified list of genes/phenotypes and return as a dictionary.
+    Fetch mimNumbers for a specified list of genes/phenotypes (from file_path)
+    and return as a dictionary.
 
     Args:
-        file_path (path to the pkl file)
-        description (bool)
-    Return:
-        dictionary
+        file_path (str): Path to either a .pkl or .txt file containing gene/phenotype names.
+        save_path (str): Path to save the list of MIM numbers as a .pkl file. Defaults to 'specific_mim.pkl'.
+        description (bool): Whether to print progress messages.
+
+    Returns:
+        dict: A dictionary where the keys are gene/phenotype names and the values are mimNumbers.
     """
+    
+    # Determine the file extension
+    _, file_ext = os.path.splitext(file_path)
+    file_ext = file_ext.lower()
+    
+    # Load data based on extension
+    if file_ext == '.pkl':
+        # Load via pickle
+        with open(file_path, 'rb') as f:
+            gene_list = pkl.load(f)
+    elif file_ext == '.txt':
+        # Load from text file (one gene/phenotype per line)
+        with open(file_path, 'r') as f:
+            gene_list = [line.strip() for line in f if line.strip()]
+    else:
+        raise ValueError(f"Unsupported file extension: {file_ext}")
+
     mim_numbers = {}
     ls = []
-    with open(file_path, "rb") as file:
-        gene_list = pkl.load(file)
+
+    # Iterate over each gene/phenotype
     for gene in tqdm(gene_list, desc="Processing"):
         if description:
             print(f"Fetching mimNumber for gene/phenotype: {gene}...")
-        mim_number = get_mim_number(gene)
+        mim_number = get_mim_number(gene)  # <--- make sure this function is defined elsewhere
         if mim_number:
             mim_numbers[gene] = mim_number
             ls.append(mim_number)
         time.sleep(0.1)
-    with open(save_path, "wb") as file:
-        pkl.dump(ls, file)
+
+    # Save the list of MIM numbers as a pickle
+    with open(save_path, 'wb') as f:
+        pkl.dump(ls, f)
+
     return mim_numbers
+
 
 def fetch_omim_data(mim_number, api_key):
     """
