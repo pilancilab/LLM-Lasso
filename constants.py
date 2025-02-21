@@ -6,8 +6,7 @@ OPENAI_API = ""
 LANGCHAIN_API = ""
 EMAIL = ""
 OPEN_ROUTER = ""
-OMIM_KEYS = [
-    'DXL0E8i7TdajQmdsRO5EYw'
+OMIM_KEYS = [ "",
 ]
 
 OMIM_PERSIST_DIRECTORY = "DATABASE DIRECTORY"  # Vector store path
