@@ -2,10 +2,9 @@
 Utils for processing small-scale data for 3 classification and 2 regression.
 
 **Classification**:
-1. South German Credit (2019): Predict whether a client carries high credit risks (1000,21).
+1. Glioma Grading Clinical and Mutation Features (2022): (839,23)
 2. Bank (2012): Predict whether a client at a bank will subscribe to a term deposit.
 3. Diabetes (1988): Predict whether a female adult patient of Pima Indian heritage has diabetes. (768, 9); (0,1)
-4. * Glioma Grading Clinical and Mutation Features (2022): (839,23)
 
 **Regression**:
 1. Spotify (2024) *: Predict the number of Spotify streams based on quantitative features like Track Score and All Time Rank. (4600, 28) | (565, 22).
@@ -83,7 +82,7 @@ def process_spotify_csv():
 
 
 def get_uciid_map():
-    return {"Credit": 144, "Bank": 222, "Wine": 186, "Glioma": 759}
+    return {"Bank": 222, "Wine": 186, "Glioma": 759}
 
 def get_kaggle_map():
     return {"Diabetes": "uciml/pima-indians-diabetes-database", "Spotify": "nelgiriyewithana/most-streamed-spotify-songs-2024"}
@@ -134,6 +133,48 @@ def save_kaggle_data(data_name, save_dir="small_scale/data/"):
     print(f"Dataset saved to: {save_path}")
     return save_path
 
+def load_kaggle_data(data_name, save_dir="small_scale/data/"):
+    """
+    Load Kaggle data, preprocess it, and save feature names to a specified directory.
+
+    Parameters:
+        data_name (str): The name of the dataset to load.
+        save_dir (str): The directory where the feature names .pkl file will be saved.
+
+    Returns:
+        tuple: A NumPy array of features (X), a list of labels (y), a list of feature names,
+               and the path to the saved .pkl file with feature names.
+    """
+    if data_name == "Spotify":
+        kag_data, y = process_spotify_csv()
+    else:
+        save_path = save_kaggle_data(data_name)
+        kag_data = pd.read_csv(save_path, encoding='utf-8', encoding_errors='ignore')
+        kag_data = kag_data.dropna()
+        y = kag_data['Outcome']
+        kag_data = kag_data.drop(columns=['Outcome'])
+
+    # Get feature names
+    feat_names = list(kag_data.columns)
+
+    # Ensure save_dir exists
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Define the file path for the pickle file
+    pkl_file_path = os.path.join(save_dir, f"{data_name}_feature_names.pkl")
+
+    # Save feature names to the specified directory
+    with open(pkl_file_path, 'wb') as pkl_file:
+        pickle.dump(feat_names, pkl_file)
+
+    # Convert data to NumPy arrays
+    X = kag_data.to_numpy()
+    y = y.squeeze().tolist()
+
+    print(f"Feature names saved to: {pkl_file_path}")
+    return X, y, feat_names, pkl_file_path
+
+
 def get_uci_feature_names(matrix, data_name, save_dir="small_scale/data/"):
     """
     Extract and process feature names along with their descriptions from a metadata matrix from fetch_ucirepo with .variables command.
@@ -174,6 +215,7 @@ def get_uci_feature_names(matrix, data_name, save_dir="small_scale/data/"):
 
     print(f"Processed feature names and descriptions saved to: {save_path}")
     return feature_dict, save_path
+
 
 
 def load_uci_data(data_name):
