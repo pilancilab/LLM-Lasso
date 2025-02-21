@@ -16,7 +16,7 @@ class Arguments:
         "help": "Which list of genes to query Pub-Med for.",
         "example": ["AASS", "CLEC4D"]
     })
-    category: str = fiel0d(metadata={
+    category: str = field(metadata={
         "help": "Which categories to query Pub-Med for.",
         "example": "Acute myocardial infarction (AMI)  and diffuse large B-cell lymphoma (DLBCL)"
     })

@@ -21,6 +21,9 @@ if __name__ == "__main__":
 
     (x_train, _, y_train, _) = read_train_test_splits(args.split_dir, args.n_splits)
 
+    args.max = min(args.max, len(x_train[0].columns)+1)
+    args.step = min(args.step, args.max-args.min-1)
+
     # Run the baseline function
     run_all_baselines_for_splits(
         x_train, y_train, args.save_dir, min=args.min, max=args.max, step=args.step, random_state=args.random_state)

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from langchain_community.vectorstores import Chroma
 from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
 from llm_lasso.utils.score_collection import create_general_prompt, \
-    save_responses_to_file, save_scores_to_pkl, create_json_prompt
+    save_responses_to_file, save_scores_to_pkl
 from llm_lasso.utils.data import convert_pkl_to_txt
 from llm_lasso.llm_penalty.rag.rag_context import get_rag_context
 from llm_lasso.llm_penalty.query_scores import query_scores_with_retries
@@ -36,12 +36,12 @@ class PenaltyCollectionParams:
     })
     pubmed_rag: bool = field(default=False, metadata={
         "help": "Whether to perform RAG with pubmed docs"})
-    default_rag: bool = field(default=True, metadata={
+    omim_rag: bool = field(default=False, metadata={
         "help": "Whether to perform RAG with the default OMIM vector store"})
-    default_num_docs: int = field(default=3, metadata={
-        "help": "Number of documents to retrieve for `default_rag`"})
+    omim_rag_num_docs: int = field(default=3, metadata={
+        "help": "Number of documents to retrieve for `omim_rag`"})
     small: bool = field(default=False, metadata={
-        "help": "For LLMs with small context sizes, reduce the amount of informatio retrieved for `default_rag`"
+        "help": "For LLMs with small context sizes, reduce the amount of informatio retrieved for `omim_rag`"
     })
     enable_memory: bool = field(default=True, metadata={
         "help": "Whether to pass memory of past queries into the LLM"})
@@ -54,7 +54,7 @@ class PenaltyCollectionParams:
         return self.summarized_gene_doc_rag or \
             self.filtered_cancer_doc_rag or \
             self.pubmed_rag or \
-            self.default_rag
+            self.omim_rag
 
 
 def wipe_llm_penalties(save_dir, rag: bool):
@@ -91,7 +91,6 @@ def collect_penalties(
     model: LLMQueryWrapperWithMemory,
     params: PenaltyCollectionParams,
     omim_api_key: str = "",
-    json_data=None
 ):
     """
     Query features in batches and extract LLM-Lasso penalties.
@@ -109,7 +108,6 @@ def collect_penalties(
     - `params`: PenaltyCollectionParams object
     - `omim_api_key`: OMIM API key, only needed if
         `params.summarized_gene_doc_rag` is True
-    - `json_data`: optional extra data for prompt construction
     """
     if params.wipe:
         logging.info("Wiping save directory before starting.")
@@ -129,12 +127,13 @@ def collect_penalties(
     if os.path.exists(trial_scores_file):
         with open(trial_scores_file, "r") as json_file:
             trial_scores = json.load(json_file)
+    else:
+        trial_scores = []
 
     # Determine which trial to start from
     start_trial = len(trial_scores)
 
     results = []
-    trial_scores = []
     trial = start_trial
 
     while trial < params.n_trials:
@@ -147,7 +146,7 @@ def collect_penalties(
         batch_scores = []
 
         if params.enable_memory:
-            model.start_memory()
+            model.start_memory(params.memory_size)
 
         # loop through batches of genes
         for start_idx in tqdm(range(0, total_features, params.batch_size), desc=f"Processing trial {trial + 1}..."):
@@ -155,10 +154,7 @@ def collect_penalties(
             batch_features = [feature_names[i] for i in idxs[start_idx:end_idx]]
 
             # Construct the query for this batch of features
-            if json_data is None:
-                query = create_general_prompt(prompt_file, category, batch_features)
-            else:
-                query = create_json_prompt(prompt_file, batch_features, json_data)
+            query = create_general_prompt(prompt_file, category, batch_features)
 
             # If we're performing RAG, get the RAG context
             context = get_rag_context(
@@ -167,8 +163,8 @@ def collect_penalties(
                 pubmed_docs=params.pubmed_rag,
                 filtered_cancer_docs=params.filtered_cancer_doc_rag,
                 summarized_gene_docs=params.summarized_gene_doc_rag,
-                original_docs=params.default_rag,
-                default_num_docs=params.default_num_docs,
+                original_docs=params.omim_rag,
+                default_num_docs=params.omim_rag_num_docs,
                 small=params.small,
             )
 
@@ -190,7 +186,7 @@ def collect_penalties(
             )
 
             logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
-            batch_scores.append(batch_scores_partial)
+            batch_scores.extend(batch_scores_partial)
             logging.info(batch_scores_partial)
             model.maybe_add_to_memory(query, output)
             results.append(output)

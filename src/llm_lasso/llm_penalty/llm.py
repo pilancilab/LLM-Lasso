@@ -181,7 +181,7 @@ class LLMQueryWrapperWithMemory:
             system_message=system_message,
             prompt=full_prompt,
             sructured=True,
-            response_format_class=response_format_class
+            format_class=response_format_class
         )
 
         if self.llm_type != LLMType.O1:

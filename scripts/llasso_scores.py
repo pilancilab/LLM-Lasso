@@ -51,11 +51,14 @@ if __name__ == "__main__":
     model = llm_params.get_model()
 
     # Initialize embeddings and vector store
-    embeddings = OpenAIEmbeddings()
-    if os.path.exists(constants.OMIM_PERSIST_DIRECTORY):
-        vectorstore = Chroma(persist_directory=constants.OMIM_PERSIST_DIRECTORY, embedding_function=embeddings)
+    if penalty_params.has_rag():
+        embeddings = OpenAIEmbeddings()
+        if os.path.exists(constants.OMIM_PERSIST_DIRECTORY):
+            vectorstore = Chroma(persist_directory=constants.OMIM_PERSIST_DIRECTORY, embedding_function=embeddings)
+        else:
+            raise FileNotFoundError(f"Vector store not found at {constants.OMIM_PERSIST_DIRECTORY}. Ensure data is preprocessed and saved.")
     else:
-        raise FileNotFoundError(f"Vector store not found at {constants.OMIM_PERSIST_DIRECTORY}. Ensure data is preprocessed and saved.")
+        vectorstore = None
 
     results, all_scores = collect_penalties(
         category=args.category,

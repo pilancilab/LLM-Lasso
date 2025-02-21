@@ -100,14 +100,14 @@ def plot_llm_lasso_result(
     regression = all(all_results["auroc"].isnull())
     if quantize_gene_counts:
         quant_level = int(np.ceil(
-            (all_results['n_genes'].max() - all_results['n_genes'].min()) / n_gene_count_bins
+            (all_results['n_features'].max() - all_results['n_features'].min()) / n_gene_count_bins
         ))
-        all_results['n_genes'] = np.round(all_results['n_genes'] / quant_level) * quant_level
+        all_results['n_features'] = np.round(all_results['n_features'] / quant_level) * quant_level
 
 
     aggregated_results = (
         all_results
-        .groupby(['method_model', 'n_genes'], dropna=False)
+        .groupby(['method_model', 'n_features'], dropna=False)
         .agg(
             mean_metric=('test_error', 'mean'),
             sd_metric=('test_error', 'std'),
@@ -158,7 +158,7 @@ def plot_llm_lasso_result(
             color = colors[method]
             data = filtered_data.where(filtered_data["method_model"] == method)
             plt.plot(
-                data["n_genes"], data[mean],
+                data["n_features"], data[mean],
                 "-D" if bolded[method] else '-o',
                 linewidth=3 if bolded[method] else 2, color=color,
                 markersize=8 if bolded[method] else 6,
@@ -167,7 +167,7 @@ def plot_llm_lasso_result(
 
             if plot_error_bars:
                 error_bars(
-                    x=data["n_genes"],
+                    x=data["n_features"],
                     upper=data[mean] + data[sd],
                     lower=data[mean] - data[sd],
                     color=color,

@@ -36,10 +36,10 @@ class Arguments:
     k_min: int = field(default=0, metadata={
         "help": "Minimum number of top genes to select."
     })
-    k_max = field(default=50, metadata={
+    k_max: int = field(default=50, metadata={
         "help": "Maximum number of top genes to select."
     })
-    step = field(default=5, metadata={
+    step: int = field(default=5, metadata={
         "help": "Step size for the range of k values."
     })
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         n_trials=args.n_trials,
         wipe=args.wipe,
-        k_min=args.k_main,
+        k_min=args.k_min,
         k_max=args.k_max,
         step=args.step
     )
