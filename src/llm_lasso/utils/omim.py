@@ -1,15 +1,16 @@
 """
 This script implements functions to fetch and process OMIM data for specified genes or phenotypes.
 """
-
+import os
 import requests
 import xml.etree.ElementTree as Tree
 import pickle as pkl
 from tqdm import tqdm
 import time
+from constants import OMIM_KEYS
 
-
-def get_mim_number(gene, api_key, quiet=False): 
+KEY = OMIM_KEYS[0]
+def get_mim_number(gene, quiet=False): 
     """
     Query OMIM API to fetch the mimNumber for a given gene or phenotype.
     Args:
@@ -24,7 +25,7 @@ def get_mim_number(gene, api_key, quiet=False):
         "start": 0,
         "sort": "score desc",
         "limit": 1,
-        "apiKey": api_key,
+        "apiKey": KEY,
         "format": "xml",  # Ensure the response is in XML format
     }
 

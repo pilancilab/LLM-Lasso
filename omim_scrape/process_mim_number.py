@@ -9,6 +9,8 @@ import requests
 import pickle as pkl
 from constants import OMIM_KEYS
 from llm_lasso.utils.omim import *
+# import the rest of omim functionalities
+from src.llm_lasso.utils.omim import *
 
 KEY = OMIM_KEYS[0] # API key for OMIM API
 
