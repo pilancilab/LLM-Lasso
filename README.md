@@ -36,7 +36,7 @@ Unlike traditional feature selection methods that rely solely on numerical data,
 The values from `_my_constants.py` are automatically loaded into `constants.py`.
 
 ### Common Setup Issues
-Intalling `adelie` as an editable package requires compiling from source, which may come with several issues:
+Installing `adelie` as an editable package requires compiling from source, which may come with several issues:
 - `adelie` requires some C++ libraries, namely `eigen`, `llvm`, and `openmp` (which may be installed as `libomp`). For Unix-based systems, these should be available through your package manager, and releases are also available online.
 - There may issues with the `eigen` library (and others) not being in the `C_INCLUDE_PATH` and `CPLUS_INCLUDE_PATH`. For this, you need to:
     - Find where the `eigen` include directory is on your machine (it should be a directory with subdirectories `Eigen` and `unsupported`). For macOS with `eigen` installed via `homebrew`, this may be in a directory that looks like `/opt/homebrew/Cellar/eigen/3.4.0_1/include/eigen3/`. For linux, this may be `/usr/include/eigen3/` or `/usr/local/include/eigen3/`, for instance.
