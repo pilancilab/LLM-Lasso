@@ -3,3 +3,6 @@ venv/
 data/
 .ipynb_checkpoints/
 *.egg-info
+omim_scrape/
++!/omim_scrape/*.py
+_my_constants.py

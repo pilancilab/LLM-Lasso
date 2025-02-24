@@ -28,8 +28,13 @@ def process_glioma():
     X = pd.DataFrame(X, columns=feat_names)
     y = pd.Series(y)
     X["Race"] = pd.Categorical(X["Race"]).codes
-    print(X)
-    print(X.shape)
+
+    columns_list = X.columns.tolist()
+    save_path = "small_scale/data/Glioma_feature_names.pkl"
+    with open(save_path, 'wb') as file:
+        pickle.dump(columns_list, file)
+    print(f"Feature names saved to: {save_path}")
+
     return X, y
 
 def process_bank():
@@ -50,10 +55,10 @@ def process_bank():
     y = pd.Series(X["y"].to_numpy())
     X.drop(["y", "index"], axis=1, inplace=True)
     columns_list = X.columns.tolist()
-    print(columns_list)
     save_path = "small_scale/data/Bank_feature_names.pkl"
     with open(save_path, 'wb') as file:
         pickle.dump(columns_list, file)
+    print(f"Feature names saved to: {save_path}")
 
     return X, y
 
@@ -77,6 +82,12 @@ def process_spotify_csv():
     y = pd.Series(data['Spotify Streams'].to_numpy())
     # Drop the target column from the features
     X = data.drop(columns=['Spotify Streams', "index"])
+
+    columns_list = X.columns.tolist()
+    save_path = "small_scale/data/Spotify_feature_names.pkl"
+    with open(save_path, 'wb') as file:
+        pickle.dump(columns_list, file)
+    print(f"Feature names saved to: {save_path}")
 
     return X, y
 
