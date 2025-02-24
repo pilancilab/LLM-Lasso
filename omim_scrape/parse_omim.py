@@ -71,14 +71,21 @@ def process_mim_numbers_to_json(input_file, output_file, description=True):
     Process a list of MIM numbers, fetch their data, and save the results to a JSON file.
 
     Args:
-        input_file (str): Path to the file containing MIM numbers (in pickle format).
+        input_file (str): Path to the file containing MIM numbers (in pickle or text format).
         output_file (str): Path to save the JSON output.
         description (bool): Whether to print progress messages.
     """
     processed_mim_numbers = load_checkpoint(output_file)
 
-    with open(input_file, "rb") as file:
-        mim_numbers = pkl.load(file)
+    # Determine the file format
+    if input_file.endswith(".pkl"):
+        with open(input_file, "rb") as file:
+            mim_numbers = pkl.load(file)
+    elif input_file.endswith(".txt"):
+        with open(input_file, "r", encoding="utf-8") as file:
+            mim_numbers = [line.strip() for line in file if line.strip().isdigit()]
+    else:
+        raise ValueError("Unsupported file format. Please provide a .pkl or .txt file.")
 
     with open(output_file, "a", encoding="utf-8") as f:
         for mim_number in tqdm(mim_numbers, desc="Processing MIM Numbers"):

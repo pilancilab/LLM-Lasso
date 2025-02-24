@@ -8,7 +8,7 @@ import warnings
 from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain.schema import HumanMessage, SystemMessage
+from langchain.schema import Document, HumanMessage, SystemMessage
 
 warnings.filterwarnings("ignore")  # Suppress warnings
 os.environ["OPENAI_API_KEY"] = "YOUR API KEY HERE"
@@ -38,10 +38,10 @@ embeddings = OpenAIEmbeddings()
 
 # Step 3: Create or load the OMIM-based vector store
 if PERSIST and os.path.exists(persist_directory):
-    print("Reusing existing combined database...")
+    print("Reusing existing database...")
     vectorstore = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
 else:
-    print("Creating a new combined database...")
+    print("Creating a new database...")
     # Wrap each entry into a Document object
     documents_wrapped = [
         Document(page_content=doc['content'], metadata=doc['metadata']) for doc in documents

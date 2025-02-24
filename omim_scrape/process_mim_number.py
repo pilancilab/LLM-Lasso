@@ -146,18 +146,22 @@ def collect_all_gene_mim_numbers(file_path, output_txt="omim_scrape/omim_all/gen
     # # 1. ensure API access is functional
     # test_omim_api_access()
 
-    # # 2. test fetching mimNumber for a list of genes
+    # # 2. test fetching mimNumber for a single gene
+    # num = get_mim_number('ABHD6')
+    # print(num)
+
+    # # 3. test fetching mimNumber for a list of genes
     # file_path = 'omim_scrape/genes1592.pkl' # path to the pkl file containing gene names
     # mim_dict = get_specified_mim(file_path)
     # print(mim_dict)
 
-    # # 3. Scrape mimNumbers.
+    # # 4. Scrape all valid mimNumbers in the OMIM database.
     # file_path = 'omim_scrape/mim2gene.txt'
     # valid_mim_numbers = collect_all_valid_mim_numbers(file_path)
     # print(len(valid_mim_numbers))
     # gene_numbers = collect_all_gene_mim_numbers(file_path)
     # print(len(gene_numbers))
 
-    # # 4. scrape and parse contents to json file for collected mimNumbers.
-    # # see omim_all.py
+    # # 5. scrape and parse contents to json file for collected mimNumbers.
+    # # see parse_omim.py
 
