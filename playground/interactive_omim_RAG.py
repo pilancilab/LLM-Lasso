@@ -9,16 +9,20 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.schema import Document, HumanMessage, SystemMessage
+import json
+import sys
+sys.path.insert(0, ".")
+import constants
 
 warnings.filterwarnings("ignore")  # Suppress warnings
-os.environ["OPENAI_API_KEY"] = "YOUR API KEY HERE"
+os.environ["OPENAI_API_KEY"] = constants.OPENAI_API
 
 # Enable persistence to save the database to disk
 PERSIST = True
 
 # File paths
-data_path = "DATA JSON PATH"
-persist_directory_base = "DATABASE PATH"
+data_path = constants.OMIM_DATA_FILE
+persist_directory_base = constants.OMIM_PERSIST_DIRECTORY
 persist_directory = persist_directory_base  # Directory for the vector store
 
 # Step 1: Load chunked data from both sources

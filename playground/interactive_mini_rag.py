@@ -8,11 +8,14 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain.indexes import VectorstoreIndexCreator
+import sys
+sys.path.insert(0, ".")
+import constants
 
 import warnings
 warnings.filterwarnings("ignore")
 
-os.environ["OPENAI_API_KEY"] = "YOUR KEY HERE"
+os.environ["OPENAI_API_KEY"] = constants.OPENAI_API
 
 PERSIST = False
 
@@ -30,6 +33,7 @@ chain = ConversationalRetrievalChain.from_llm(
 chat_history = []
 
 # Simple chat loop
+print("This is a simple demo for a mini RAG model based on George Washington's wiki description using OpenAI API queries. ")
 print("Type 'quit', 'q', or 'exit' to end the chat.")
 while True:
     query = input("Prompt: ")

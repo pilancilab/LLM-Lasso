@@ -20,15 +20,8 @@ class Arguments:
     fake_names_dir: str = field(metadata={
         "help": "Directory to store the adversarially-corrupted feature names"
     })
-    category: str = field(metadata={
+    category: str = field(default=None, metadata={
         "help": "Category for the query (e.g., cancer type)."
-    })
-    save_dir: str = field(metadata={
-        "help": "Directory to save the results and scores."
-    })
-    experiment: str = field(default="llm-lasso", metadata={
-        "help": "Whether to run llm-lasso or llm-score",
-        "choices": ["llm-score", "llm-lasso"]
     })
     max_replace: int = field(default=500, metadata={
         "help": "Maximum number of features to adversarially corrupt."

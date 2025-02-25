@@ -58,3 +58,31 @@ Installing `adelie` as an editable package requires compiling from source, which
 For a tutorial on the full LLM-Lasso pipeline, see `examples/llm_lasso_tutorial.ipynb`, which walks through the LLM-Lasso process for two of the small-scale datasets (one classification problem and one regression problem).
 
 For a tutorial on scraping the OMIM database and using the resulting documents for retrieval augmented generation (RAG), see `examples/omim_rag_tutorial.ipynb`.
+
+## Repo Structure
+
+- **`adelie-fork`**: `adelie` submodule, which is used for solving the penalty factor formation of Lasso.
+- **`examples`**: tutorials for LLM-Lasso and the OMIM RAG pipeline.
+- **`omim_scrape`**: helper fuctions for OMIM RAG.
+- **`playground`**: some interactive scripts for querying LLMs, with or without RAG.
+- **`prompts`**: prompts used for LLM-Lasso, the LLM-Score baseline, and vector store retrieval.
+- **`scripts`**: `python` scripts for the LLM-Lasso pipeline (generating data splits and getting LLM-Lasso penalties) and running the baselines.
+
+    The primary scripts are as follows:   
+    - **`small_scale_splits.py`**: generates random training and test splits for the small-scale datasets.
+    Test error and AUROC results downstream are taken as averages over these splits.
+    - **`run_baselines.py`**: runs the data-driven baseline methods on train/test splits generated, e.g., by `small_scale_splits.py`.
+    - **`llm_score.py`**: generates importance scores via the LLM-Score baseline.
+    - **`llm_lasso_scores.py`** generates LLM-Lasso penalty factors.
+    
+    The following scripts may also be useful:
+    - **`adversarial_feature_names.py`**: generates an adversarially-corrupted feature name list.
+    - **`pubmed_retrieve.py`**: prints out the information retrieved for a given gene through the Pubmed RAG pipeline.
+- **`src/llm_lasso`**: primary code for the `llm_lasso` package.
+    - **`adversarial`**: adversarial feature name corruption.
+    - **`baselines`**: data-driven baseline and LLM-Score implemetation.
+    - **`llm_penalty`**: generation of LLM-Lasso penalty factors, with and without RAG.
+    - **`task_specific_lasso`**: running LASSO with LLM-generated penalty factors and plotting results.
+    - **`data_splits.py`**: generation of random training and test splits, which are used for both the baselines and LLM-Lasso.
+    - **`utils`**: helper functions.
+- **`constants.py`**, **`sample_constants.py`**: files for storing API keys, etc.

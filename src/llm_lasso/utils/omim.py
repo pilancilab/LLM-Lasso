@@ -7,10 +7,8 @@ import xml.etree.ElementTree as Tree
 import pickle as pkl
 from tqdm import tqdm
 import time
-from constants import OMIM_KEYS
 
-KEY = OMIM_KEYS[0]
-def get_mim_number(gene, quiet=False): 
+def get_mim_number(gene, api_key, quiet=False): 
     """
     Query OMIM API to fetch the mimNumber for a given gene or phenotype.
     Args:
@@ -25,7 +23,7 @@ def get_mim_number(gene, quiet=False):
         "start": 0,
         "sort": "score desc",
         "limit": 1,
-        "apiKey": KEY,
+        "apiKey": api_key,
         "format": "xml",  # Ensure the response is in XML format
     }
 
@@ -54,7 +52,7 @@ def get_mim_number(gene, quiet=False):
         return None
 
 
-def get_specified_mim(file_path, save_path='specific_mim.pkl', description=False):
+def get_specified_mim(file_path, api_key, save_path='specific_mim.pkl', description=False):
     """
     Fetch mimNumbers for a specified list of genes/phenotypes (from file_path)
     and return as a dictionary.
@@ -91,7 +89,7 @@ def get_specified_mim(file_path, save_path='specific_mim.pkl', description=False
     for gene in tqdm(gene_list, desc="Processing"):
         if description:
             print(f"Fetching mimNumber for gene/phenotype: {gene}...")
-        mim_number = get_mim_number(gene)  # <--- make sure this function is defined elsewhere
+        mim_number = get_mim_number(gene, api_key)  # <--- make sure this function is defined elsewhere
         if mim_number:
             mim_numbers[gene] = mim_number
             ls.append(mim_number)
