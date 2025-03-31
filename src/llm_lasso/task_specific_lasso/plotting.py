@@ -6,8 +6,8 @@ from llm_lasso.task_specific_lasso.gene_usage import get_top_features_for_method
 import re
 
 
-LASSO_COLOR = ["#999999"]
-BASELINE_COLORS = ["#56B4E9", "#009292", "#117733", "#490092", "#924900"]
+LASSO_COLOR = ["black"]
+BASELINE_COLORS = ["#56B4E9", "#009292", "#117733", "#490092", "#924900", "#999999"]
 LLM_LASSO_COLORS = ["#D55E00", "#CC79A7", "#E69F00"] + BASELINE_COLORS
 
 
@@ -80,6 +80,7 @@ def plot_llm_lasso_result(
     n_gene_count_bins=20,
     bolded_methods=[],
     plot_error_bars = True,
+    x_lim=None
 ):
     """
     Plot result of LLM-Lasso alongside baselines.
@@ -96,7 +97,7 @@ def plot_llm_lasso_result(
     """
     
     n_splits = all_results["split"].max() + 1
-    baseline_names = all_results[all_results["is_baseline"] == True]["method"].unique()
+    baseline_names = all_results[all_results["is_baseline"] == True]["method_model"].unique()
     regression = all(all_results["auroc"].isnull())
     if quantize_gene_counts:
         quant_level = int(np.ceil(
@@ -122,9 +123,11 @@ def plot_llm_lasso_result(
    # Assign specific colors to each method group
     methods = aggregated_results['method_model'].unique()
 
-    our_methods  = [method for method in methods if re.match(r"^1/imp", method)]
+    # our_methods  = [method for method in methods if re.match(r"^1/imp", method) or "bagging" in method or "LLM" in method]
     lasso_method = ["Lasso"] if "Lasso" in methods else []
     baseline_methods = baseline_names
+    our_methods = [method for method in methods if \
+                   method not in lasso_method and method not in baseline_methods]
 
     colors = {}
     bolded = {}
@@ -153,12 +156,23 @@ def plot_llm_lasso_result(
         metrics = metrics[:1]
 
     for (mean, sd, label) in metrics:
-        plt.figure(figsize=(10, 8))
-        for (i, method) in enumerate(reversed(methods)):
+        plt.figure(figsize=(16, 8))
+        for (i, method) in enumerate((methods)):
             color = colors[method]
             data = filtered_data.where(filtered_data["method_model"] == method)
+
+            xaxis_data = data["n_features"][:]
+            data_mean = data[mean]
+            data_sd = data[sd]
+            if x_lim:
+                idxs = [i for (i,x) in enumerate(xaxis_data) if x <= x_lim]
+                xaxis_data = xaxis_data[idxs]
+                # print(xaxis_data)
+                data_mean = data_mean[idxs]
+                data_sd = data_sd[idxs]
+
             plt.plot(
-                data["n_features"], data[mean],
+                xaxis_data, data_mean,
                 "-D" if bolded[method] else '-o',
                 linewidth=3 if bolded[method] else 2, color=color,
                 markersize=8 if bolded[method] else 6,
@@ -167,9 +181,9 @@ def plot_llm_lasso_result(
 
             if plot_error_bars:
                 error_bars(
-                    x=data["n_features"],
-                    upper=data[mean] + data[sd],
-                    lower=data[mean] - data[sd],
+                    x=xaxis_data,
+                    upper=data_mean + data_sd,
+                    lower=data_mean - data_sd,
                     color=color,
                     width=0,
                     x_offset=i*0.005
