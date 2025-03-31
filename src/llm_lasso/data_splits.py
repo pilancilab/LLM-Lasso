@@ -31,6 +31,32 @@ def balanced_folds(data_labels, nfolds=None):
 
     return [np.array(fold) for fold in folds]
 
+def get_two_balanced_splits(data_labels: pd.Series, ratio_test=0.5) -> tuple[list[int], list[int]]:
+    """
+    Creates equal-size folds such that different folds an equal proportion
+    of each class.
+    """
+    # Group indices by class
+    y_groups = {label: np.where(data_labels == label)[0] for label in np.unique(data_labels)}
+
+    # Shuffle indices within each class
+    for label in y_groups:
+        np.random.shuffle(y_groups[label])
+
+    # Distribute indices into folds
+    train = []
+    test = []
+    for label, indices in y_groups.items():
+        for i, idx in enumerate(indices):
+            if i <= np.ceil(len(indices) * ratio_test):
+                test.append(idx)
+            else:
+                train.append(idx)
+
+    np.random.shuffle(train)
+    np.random.shuffle(test)
+    return (train, test)
+
 
 def folds(ndata, nfolds):
     """
@@ -46,8 +72,27 @@ def folds(ndata, nfolds):
 
     return [np.array(fold) for fold in folds]
 
+def two_folds(ndata, ratio_test=0.5):
+    """
+    Creates equal-size folds such that different folds an equal proportion
+    of each class.
+    """
+    indices = np.arange(ndata)
+    nfolds = 2
 
-def save_train_test_splits(X: pd.DataFrame, y: pd.Series, save_dir: str, balanced: bool, n_splits=10, seed=0):
+    # Distribute indices into folds
+    folds = [[] for _ in range(nfolds)]
+    for i, idx in enumerate(indices):
+        if i <= np.ceil(len(indices) * ratio_test):
+            folds[1].append(idx)
+        else:
+            folds[0].append(idx)
+
+    return [np.array(fold) for fold in folds]
+
+
+def save_train_test_splits(X: pd.DataFrame, y: pd.Series, save_dir: str, 
+                           balanced: bool, n_splits=10, seed=0):
     """
     Divides a dataset into 50/50 train-test folds, for `n_splits` differet
     random seeds. Saves all splits to CSV files

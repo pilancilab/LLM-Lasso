@@ -8,7 +8,7 @@ from transformers.hf_argparser import HfArgumentParser
 class Arguments:
     dataset: str = field(metadata={
         "help": "Which small-scale dataset to generate splits for.",
-        "choices": ["Spotify", "Glioma", "Bank", "Wine", "Diabetes"]
+        "choices": ["Spotify", "Glioma", "Bank", "Wine", "Diabetes", "Fraud"]
     })
     save_dir: str = field(metadata={
         "help": "Directory in which to save the splits."

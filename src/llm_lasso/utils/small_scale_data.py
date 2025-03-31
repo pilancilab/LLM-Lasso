@@ -98,7 +98,10 @@ def get_uciid_map():
     return {"Bank": 222, "Wine": 186, "Glioma": 759}
 
 def get_kaggle_map():
-    return {"Diabetes": "uciml/pima-indians-diabetes-database", "Spotify": "nelgiriyewithana/most-streamed-spotify-songs-2024"}
+    return {
+        "Diabetes": "uciml/pima-indians-diabetes-database",
+        "Spotify": "nelgiriyewithana/most-streamed-spotify-songs-2024",
+    }
 
 def save_kaggle_data(data_name, save_dir="small_scale/data/"):
     """

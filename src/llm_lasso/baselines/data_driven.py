@@ -19,8 +19,24 @@ from sklearn.linear_model import LogisticRegression
 import random
 import json
 from llm_lasso.data_splits import read_train_test_splits
+import xgboost as xgb
+import numpy as np
 
 ######################## Data-Driven Feature Selection Baselines ######################################
+
+def xgboost(X: pd.DataFrame, y: pd.Series, k):
+    unique = y.unique()
+    if len(unique) <= 2:
+       objective = 'binary:logistic'
+    elif np.issubdtype(y.to_numpy().dtype, np.integer):
+        objective = 'multi:softmax'
+    else:
+        objective = 'reg:squarederror'
+
+    model = xgb.XGBClassifier(objective=objective).fit(X, y)
+    features = list(X.columns[np.argsort(-model.feature_importances_)][:k])
+    return X[features], features
+
 
 # 1. Filtering by Mutual Information (MI)
 def mi_filter_method(X, y, k):
@@ -100,8 +116,10 @@ def feature_selector(X, y, method, k, random_state=42):
         return mrmr_method(X, y, k)
     elif method == 'random':
         return random_feature_selector(X, k, random_state=random_state)
+    elif method == 'xgboost':
+        return xgboost(X, y, k)
     else:
-        raise ValueError("Invalid method. Choose from 'mi', 'rfe', 'mrmr', 'random'.")
+        raise ValueError("Invalid method. Choose from 'mi', 'rfe', 'mrmr', 'random', 'xgboost'.")
 
 
 def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42):
@@ -119,7 +137,7 @@ def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42)
     - random_state (int): Random seed for reproducibility.
     """
     # Baseline methods
-    methods = ['mi', 'rfe', 'random', 'mrmr']
+    methods = ['mi', 'rfe', 'random', 'mrmr', 'xgboost']
 
     # Ensure the save directory exists
     os.makedirs(save_dir, exist_ok=True)
