@@ -287,9 +287,12 @@ def run_llm_lasso_cv_for_splits(
         for model in model_names:
             if verbose:
                 print(f"Running model: {model}")
+            pf = scores[model]
+            if len(pf.shape) == 2:
+                pf = pf[split_idx, :]
             res = run_llm_lasso_and_maybe_remove_correlated_features(
                 train_test=splits[split_idx],
-                scores=scores[model],
+                scores=pf,
                 config=config,
                 score_trial_list=score_trial_list[model] \
                     if (score_trial_list is not None and model in score_trial_list) \
