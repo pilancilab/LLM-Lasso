@@ -221,15 +221,12 @@ class LLMQueryWrapperWithMemory:
 
         full_prompt = f"{self._maybe_get_memory()}\n\n{full_prompt}"
         if self.llm_type == LLMType.O1:
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": full_prompt}
-            ]
-            completion = self.chat.completions.create(
+            response = self.openai_client.responses.create(
                 model="o1",
-                messages=messages
+                input=full_prompt,
+                instructions=system_message
             )
-            output = completion.choices[0].message.content
+            output = response.output_text
         elif self.llm_type == LLMType.O1PRO:
             completion = self.openai_client.create(
                 model=self.llm_name,

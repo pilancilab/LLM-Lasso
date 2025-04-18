@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import json
+from llm_lasso.task_specific_lasso.utils import TrainTest
 
 
 # Helper function to create balanced folds
@@ -127,9 +128,7 @@ def save_train_test_splits(X: pd.DataFrame, y: pd.Series, save_dir: str,
         y_test.to_csv(f"{save_dir}/y_test{i}.csv", index=False)
 
 
-def read_train_test_splits(dir: str, n_splits: int) -> tuple[
-    list[pd.DataFrame], list[pd.Series], list[pd.DataFrame], list[pd.Series]
-]:
+def read_train_test_splits(dir: str, n_splits: int) -> list[TrainTest]:
     """
     Reads the output of `save_train_test_splits` into the following four lists:
     - `x_train`: list of training datapoints (as pandas dataframes) for each different split
@@ -141,18 +140,18 @@ def read_train_test_splits(dir: str, n_splits: int) -> tuple[
     - `dir`: save directory of `save_train_test_splits`
     - `n_splits`: number of splits to load.
     """
-    x_train = []
-    x_test = []
-    y_train = []
-    y_test = []
+
+    splits = []
 
     for i in range(n_splits):
-        x_train.append(pd.read_csv(f"{dir}/x_train_{i}.csv"))
-        x_test.append(pd.read_csv(f"{dir}/x_test{i}.csv"))
-        y_train.append(pd.read_csv(f"{dir}/y_train{i}.csv")["0"])
-        y_test.append(pd.read_csv(f"{dir}/y_test{i}.csv")["0"])
+        splits.append(TrainTest(
+            pd.read_csv(f"{dir}/x_train_{i}.csv"),
+            pd.read_csv(f"{dir}/x_test{i}.csv"),
+            pd.read_csv(f"{dir}/y_train{i}.csv")["0"],
+            pd.read_csv(f"{dir}/y_test{i}.csv")["0"]
+        ))
 
-    return x_train, x_test, y_train, y_test
+    return splits
 
 
 def read_baseline_splits(dir: str, n_features: str, n_splits: int) -> dict[str, list[list[str]]]:
@@ -176,7 +175,7 @@ def read_baseline_splits(dir: str, n_features: str, n_splits: int) -> dict[str, 
     for x in data.keys():
         feature_baseline[x] = [data[x][n_features]]
 
-    for i in range(n_splits):
+    for i in range(1, n_splits):
         with open(f'{dir}/split{i}/selected_features.json') as f:
             data = json.load(f)
         for x in data.keys():

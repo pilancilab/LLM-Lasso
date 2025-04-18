@@ -5,20 +5,23 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 from adelie.cv import cv_grpnet
-from adelie import grpnet
+from adelie.solver import grpnet
 import adelie as ad
 from adelie.diagnostic import auc_roc, test_error_hamming, test_error_mse, predict
 from enum import IntEnum
 import xgboost as xgb
 from dataclasses import dataclass
-from llm_lasso.task_specific_lasso.utils import scale_cols, PenaltyType, count_feature_usage
+from llm_lasso.task_specific_lasso.utils import standardize, PenaltyType, count_feature_usage
 from scipy.special import expit
 from tqdm import tqdm
 import scipy.linalg
 
+"""
+TODO: clean up and document this file!
+"""
 
 @dataclass
-class TrainTest:
+class TrainTestAugmented:
     X_train: np.array
     X_val: np.array
     y_train: np.array
@@ -60,7 +63,7 @@ def get_balanced_splits(data_labels: pd.Series, ratio_test=0.5) -> tuple[list[in
 def get_train_and_test_splits(
     X: pd.DataFrame, y: pd.Series,
     ratio_test: float, n_splits: int, seed=0
-) -> list[TrainTest]:
+) -> list[TrainTestAugmented]:
     splits = []
     for i in range(n_splits):
         np.random.seed(seed + i)
@@ -72,10 +75,10 @@ def get_train_and_test_splits(
         y_test = y.loc[test].to_numpy()
 
         X_test = np.asfortranarray(
-            scale_cols(X_test, center=X_train.mean(axis=0), scale=X_train.std(axis=0)).to_numpy(),
+            standardize(X_test, center=X_train.mean(axis=0), scale=X_train.std(axis=0)).to_numpy(),
         )
         X_train = np.asfortranarray(
-            scale_cols(X_train).to_numpy(),
+            standardize(X_train).to_numpy(),
         )
         X_train_aug = np.hstack((np.ones((X_train.shape[0], 1)), X_train))
         X_val_aug = np.hstack((np.ones((X_test.shape[0], 1)), X_test))
@@ -83,7 +86,7 @@ def get_train_and_test_splits(
         glm_train = ad.glm.binomial(y=y_train, dtype=np.float64)
 
         splits.append(
-            TrainTest(
+            TrainTestAugmented(
                 X_train, X_test, y_train, y_test,
                 X_train_aug, X_val_aug, glm_train,
                 X_train.shape[0], X_test.shape[0]
@@ -251,8 +254,8 @@ def penalty_descent_llm_lasso(
 
     penalty = best_penalties
 
-    x_train_scaled = scale_cols(x_train)
-    x_test_scaled = scale_cols(x_test, center=x_train.mean(axis=0), scale=x_train.std(axis=0))
+    x_train_scaled = standardize(x_train)
+    x_test_scaled = standardize(x_test, center=x_train.mean(axis=0), scale=x_train.std(axis=0))
     glm_train = ad.glm.binomial(y=y_train.to_numpy(), dtype=np.float64)
 
     model = grpnet(

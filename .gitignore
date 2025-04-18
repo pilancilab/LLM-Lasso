@@ -6,5 +6,6 @@ data/
 omim_scrape/
 +!/omim_scrape/*.py
 _my_constants.py
-test.ipynb
+testing_notebooks/
 test/
+llm_lasso_old.py

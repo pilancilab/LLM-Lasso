@@ -23,9 +23,9 @@ def get_top_features_for_method(
     sign_df = res[(res["method_model"] == method_model)]
     renamer = {}
     sgn_renamer = {}
-    for (i, gene) in enumerate(feature_names):
-        renamer[f"Feature_{i+1}"] = gene
-        sgn_renamer[f"Feature_Sign_{i+1}"] = gene
+    for gene in feature_names:
+        renamer[f"{gene}_Selected"] = gene
+        sgn_renamer[f"{gene}_Sign"] = gene
     df = df.rename(columns=renamer)
     sign_df = sign_df.rename(columns=sgn_renamer)
 

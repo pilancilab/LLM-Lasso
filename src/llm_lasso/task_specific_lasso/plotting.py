@@ -3,17 +3,32 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from llm_lasso.task_specific_lasso.gene_usage import get_top_features_for_method
-import re
+
+
+def plot_format_generator(colors: list[str]):
+    marker_styles = ["o", "v", "s", "X", "d"]
+    idx = 0
+
+    while True:
+        if idx >= len(marker_styles) * len(colors):
+            idx = 0
+        yield colors[idx % len(colors)], marker_styles[idx // len(colors)]
+        idx += 1
 
 
 LASSO_COLOR = ["black"]
-BASELINE_COLORS = ["#56B4E9", "#009292", "#117733", "#490092", "#924900", "#999999"]
-LLM_LASSO_COLORS = ["#D55E00", "#CC79A7", "#E69F00"] + BASELINE_COLORS
+BASELINE_COLORS = ["#56B4E9", "#009292", "#117733", "#490092", "#924900"]
+LLM_LASSO_COLORS = ["#DC267F", "#FE6100", "#FFB000"]
 
 
-def plot_heatmap(res: pd.DataFrame, method_models: list[str], labels: list[str],
-                 feature_names: list[str], sort_by="RAG", top=10, task="",
-                 pos_marker="+", neg_marker="-"):
+def plot_heatmap(
+    dataframes: list[pd.DataFrame],
+    method_models: list[str],
+    labels: list[str],
+    feature_names: list[str],
+    sort_by="RAG", top=10, task="",
+    pos_marker="+", neg_marker="-"
+):
     """
     Plots a feature usage heatmap for binary classification or regression.
 
@@ -31,6 +46,8 @@ def plot_heatmap(res: pd.DataFrame, method_models: list[str], labels: list[str],
     - `pos_marker`: label for features with positive contribution.
     - `neg_marker`: label for features with negative contribution.
     """
+
+    res = pd.concat(dataframes, ignore_index=True).copy()
     raw_top_genes = [
         get_top_features_for_method(res, method_model, feature_names, top=top)
             for method_model in method_models
@@ -75,7 +92,7 @@ def error_bars(x, upper, lower, color, width=0.02, x_offset=0):
 
 
 def plot_llm_lasso_result(
-    all_results: pd.DataFrame,
+    dataframes: list[pd.DataFrame],
     quantize_gene_counts = False,
     n_gene_count_bins=20,
     bolded_methods=[],
@@ -96,7 +113,38 @@ def plot_llm_lasso_result(
     - `plot_error_bars`: whether to plot standard deviation error bars.
     """
     
+
+    all_results = pd.concat(dataframes, ignore_index=True).copy()
+
+    our_method_format = plot_format_generator(LLM_LASSO_COLORS)
+    baseline_format = plot_format_generator(BASELINE_COLORS)
+    
     n_splits = all_results["split"].max() + 1
+    if x_lim is None:
+        x_lim = all_results["n_features"].max()
+
+    # Fill in points where the model does not select that number of features
+    # (e.g., when Lasso refuses to select more than a certain number of
+    # features, depending on the penalty factors)
+    for method_model in all_results["method_model"].unique():
+        for split in range(n_splits):
+            prev_row = None
+            for nfeat in range(x_lim + 1):
+                row = all_results[
+                    np.bitwise_and(
+                        all_results["method_model"] == method_model,
+                        np.bitwise_and(
+                            all_results["split"] == split,
+                            all_results["n_features"] == nfeat))
+                    ]
+                if row.shape[0] == 1:
+                    prev_row = row.copy()
+                elif row.shape[0] == 0:
+                    if prev_row is not None:
+                        prev_row["n_features"] = nfeat
+                        all_results = pd.concat([all_results, prev_row], ignore_index=True).copy()
+
+    # Infer some properties from the dataframe
     baseline_names = all_results[all_results["is_baseline"] == True]["method_model"].unique()
     regression = all(all_results["auroc"].isnull())
     if quantize_gene_counts:
@@ -105,7 +153,7 @@ def plot_llm_lasso_result(
         ))
         all_results['n_features'] = np.round(all_results['n_features'] / quant_level) * quant_level
 
-
+    # Get mean and standard deviation of the metrics at each point
     aggregated_results = (
         all_results
         .groupby(['method_model', 'n_features'], dropna=False)
@@ -122,23 +170,23 @@ def plot_llm_lasso_result(
     )
    # Assign specific colors to each method group
     methods = aggregated_results['method_model'].unique()
-
-    # our_methods  = [method for method in methods if re.match(r"^1/imp", method) or "bagging" in method or "LLM" in method]
     lasso_method = ["Lasso"] if "Lasso" in methods else []
     baseline_methods = baseline_names
+
+    # Anything that's not Lasso or a baseline defaults to being in "our_methods"
     our_methods = [method for method in methods if \
                    method not in lasso_method and method not in baseline_methods]
 
-    colors = {}
+    color_and_marker = {}
     bolded = {}
     for (i, method) in enumerate(our_methods):
-        colors[method] = LLM_LASSO_COLORS[i]
+        color_and_marker[method] = next(our_method_format)
         bolded[method] = False
     for (i, method) in enumerate(lasso_method):
-        colors[method] = LASSO_COLOR[i]
+        color_and_marker[method] = (LASSO_COLOR[0], "o")
         bolded[method] = False
     for (i, method) in enumerate(baseline_methods):
-        colors[method] = BASELINE_COLORS[i]
+        color_and_marker[method] = next(baseline_format)
         bolded[method] = False
     
     for met in bolded_methods:
@@ -153,12 +201,12 @@ def plot_llm_lasso_result(
         ("mean_auc", "sd_auc", "AUROC")
     ]
     if regression:
-        metrics = metrics[:1]
+        metrics = metrics[:1] # no AUROC
 
     for (mean, sd, label) in metrics:
         plt.figure(figsize=(16, 8))
         for (i, method) in enumerate((methods)):
-            color = colors[method]
+            color, marker = color_and_marker[method]
             data = filtered_data.where(filtered_data["method_model"] == method)
 
             xaxis_data = data["n_features"][:]
@@ -173,9 +221,9 @@ def plot_llm_lasso_result(
 
             plt.plot(
                 xaxis_data, data_mean,
-                "-D" if bolded[method] else '-o',
+                "-D" if bolded[method] else f'-{marker}',
                 linewidth=3 if bolded[method] else 2, color=color,
-                markersize=8 if bolded[method] else 6,
+                markersize=12 if bolded[method] else 9,
                 label=method
             )
 
@@ -189,28 +237,10 @@ def plot_llm_lasso_result(
                     x_offset=i*0.005
                 )
             plt.grid(True, alpha=0.5)
-        plt.ylabel(label, fontdict={"size": 16})
-        plt.xlabel("Number of Features", fontdict={"size": 16}) 
-        plt.legend(fontsize=14, bbox_to_anchor=(1.02, 0.5), loc="center left")
-        plt.tick_params(axis='both', labelsize=12)  # Change font size for both x and y axes
-        plt.title(f"LLM-LASSO Performance across {n_splits} Splits", fontdict={"size": 18})
+        plt.ylabel(label, fontdict={"size": 24})
+        plt.xlabel("Number of Features", fontdict={"size": 24}) 
+        plt.legend(fontsize=20, bbox_to_anchor=(1.02, 0.5), loc="center left")
+        plt.tick_params(axis='both', labelsize=20)  # Change font size for both x and y axes
+        plt.title(f"LLM-LASSO Performance across {n_splits} Splits", fontdict={"size": 30})
 
-
-def get_means_at_pt(df: pd.DataFrame, models, methods, n_genes=4, metric="test_error"):
-    means = {}
-    stds = {}
-    for (model, method) in zip(models, methods):
-        x = df[(df["model"] == model) & (df["method"] == method)]
-
-        subset = None
-        for i in reversed(range(1,n_genes + 1)):  
-            if i in x["n_genes"].to_list():
-                subset = x[x["n_genes"] == i]
-                break
-
-        means[(model, method)] = subset[metric].mean()
-        if metric == "roc_auc":
-            means[(model, method)] = 1 - means[(model, method)]
-        stds[(model, method)] = subset[metric].std()
-    
-    return means, stds
+        
