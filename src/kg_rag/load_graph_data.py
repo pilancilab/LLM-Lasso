@@ -11,6 +11,7 @@ import igraph as ig
 import torch
 from arango import ArangoClient
 from torch_geometric.data import Data
+from constants import ARANGO_DB_USERNAME, ARANGO_DB_PASSWORD, ARANGO_DB_NAME
 
 def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle'):
     """
@@ -355,12 +356,12 @@ def load_graph_data_pyg(load_dir, save_dir, save_filename='ikraph_graph_pyg.pt')
     return data
 
 
-def load_graph_data(load_dir, save_dir, save_filename='ikraph_graph.gpickle', method = 'netx'):
+def load_graph_data(load_dir, save_dir, save_filename='ikraph_graph.gpickle', method = 'networkx'):
     """
     Load iKraph data into a graph using the specified method and save it.
 
     Args:
-        method (str): Method to use for loading the graph ('networkx', 'igraph', 'pyg').
+        method (str): Method to use for loading the graph ('networkx', 'igraph', 'pyg', 'arangodb').
         load_dir (str): Directory where the iKraph JSON files are located.
         save_dir (str): Directory where the constructed graph will be saved.
         save_filename (str): Filename for the saved graph (default: 'ikraph_graph.gpickle').
@@ -374,10 +375,15 @@ def load_graph_data(load_dir, save_dir, save_filename='ikraph_graph.gpickle', me
         return load_graph_data_igraph(load_dir, save_dir, save_filename)
     elif method == 'pyg':
         return load_graph_data_pyg(load_dir, save_dir, save_filename)
+    elif method == 'arangodb':
+        # Example usage, replace with actual credentials
+        username = ARANGO_DB_USERNAME
+        password = ARANGO_DB_PASSWORD
+        db_name = ARANGO_DB_NAME
+        return load_graph_data_arangodb(load_dir, db_name, username, password)
     else:
         raise ValueError("Invalid method. Choose from 'networkx', 'igraph', or 'pyg'.")
     
-
 
 
 if __name__ == "__main__":
