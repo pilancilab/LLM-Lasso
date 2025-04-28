@@ -9,9 +9,10 @@ import networkx as nx
 from tqdm import tqdm
 import igraph as ig
 import torch
-from arango import ArangoClient
+# from arango import ArangoClient
 from torch_geometric.data import Data
-from constants import ARANGO_DB_USERNAME, ARANGO_DB_PASSWORD, ARANGO_DB_NAME
+import pickle
+# from constants import ARANGO_DB_USERNAME, ARANGO_DB_PASSWORD, ARANGO_DB_NAME
 
 def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle'):
     """
@@ -111,7 +112,8 @@ def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle
     # Save graph
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, save_filename)
-    nx.write_gpickle(G, save_path)
+    with open(save_path, 'wb') as f:
+        pickle.dump(G, f, pickle.HIGHEST_PROTOCOL)
     print(f"Graph saved to {save_path}")
 
     return G
@@ -179,7 +181,8 @@ def load_graph_data_igraph(load_dir, save_dir, save_filename='ikraph_graph_igrap
     # Save graph
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, save_filename)
-    g.write_pickle(save_path)
+    with open(save_path, 'wb') as f:
+        pickle.dump(g, f, pickle.HIGHEST_PROTOCOL)
 
     print(f"Graph saved to {save_path}")
 
