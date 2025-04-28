@@ -9,6 +9,7 @@ import networkx as nx
 from tqdm import tqdm
 import igraph as ig
 import torch
+from arango import ArangoClient
 from torch_geometric.data import Data
 
 def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle'):
@@ -184,6 +185,111 @@ def load_graph_data_igraph(load_dir, save_dir, save_filename='ikraph_graph_igrap
 
     return g
 
+def load_graph_data_arangodb(load_dir, db_name, username, password, graph_name='ikraph', vertex_col_name='nodes', edge_col_name='edges'):
+    """
+    Load iKraph data into ArangoDB as a graph database.
+
+    Returns:
+        db: ArangoDB database connection object
+        graph: ArangoDB graph object
+    """
+    client = ArangoClient()
+    sys_db = client.db('_system', username=username, password=password)
+
+    if not sys_db.has_database(db_name):
+        sys_db.create_database(db_name)
+
+    db = client.db(db_name, username=username, password=password)
+
+    if not db.has_collection(vertex_col_name):
+        db.create_collection(vertex_col_name)
+
+    if not db.has_collection(edge_col_name):
+        db.create_collection(edge_col_name, edge=True)
+
+    if not db.has_graph(graph_name):
+        graph = db.create_graph(graph_name)
+        graph.create_vertex_collection(vertex_col_name)
+        graph.create_edge_definition(
+            edge_collection=edge_col_name,
+            from_vertex_collections=[vertex_col_name],
+            to_vertex_collections=[vertex_col_name],
+        )
+    else:
+        graph = db.graph(graph_name)
+
+    nodes_collection = graph.vertex_collection(vertex_col_name)
+    edges_collection = graph.edge_collection(edge_col_name)
+
+    print("Loading nodes...")
+    with open(os.path.join(load_dir, 'NER_ID_dict_cap_final.json')) as f:
+        node_data = json.load(f)
+
+    node_mapping = {}
+    for node in tqdm(node_data, desc="Adding nodes"):
+        doc = {
+            "_key": node["biokdeid"],
+            "type": node.get("type", "Unknown"),
+            "subtype": node.get("subtype", "NA"),
+            "external_id": node.get("id", ""),
+            "species": node.get("species", ""),
+            "official_name": node.get("official name", ""),
+            "common_name": node.get("common name", "")
+        }
+        nodes_collection.insert(doc, overwrite=True)
+        node_mapping[node["biokdeid"]] = f"{vertex_col_name}/{node['biokdeid']}"
+
+    print(f"Loaded {len(node_mapping)} nodes.")
+
+    print("Loading edges...")
+    with open(os.path.join(load_dir, 'PubMedList.json')) as f:
+        pubmed_relations = json.load(f)
+
+    for rel_key, rel_list in tqdm(pubmed_relations.items(), desc="Adding PubMed edges"):
+        parts = rel_key.split('.')
+        if len(parts) < 6:
+            continue
+        node1, node2 = parts[0], parts[1]
+        if node1 in node_mapping and node2 in node_mapping:
+            for entry in rel_list:
+                score, doc_id, prob, novelty = entry
+                edge_doc = {
+                    "_from": node_mapping[node1],
+                    "_to": node_mapping[node2],
+                    "source": "PubMed",
+                    "relation_id": parts[2],
+                    "correlation_id": parts[3],
+                    "direction": parts[4],
+                    "method": parts[5],
+                    "score": float(score),
+                    "probability": float(prob),
+                    "novelty": int(novelty),
+                    "doc_id": doc_id
+                }
+                edges_collection.insert(edge_doc)
+
+    with open(os.path.join(load_dir, 'DBRelations.json')) as f:
+        db_relations = json.load(f)
+
+    for rel in tqdm(db_relations, desc="Adding DB edges"):
+        node1 = rel.get("node_one_id")
+        node2 = rel.get("node_two_id")
+        if node1 in node_mapping and node2 in node_mapping:
+            edge_doc = {
+                "_from": node_mapping[node1],
+                "_to": node_mapping[node2],
+                "source": "Database",
+                "relationship_type": rel.get("relationship_type", "Unknown"),
+                "probability": float(rel.get("prob", 1.0)),
+                "score": float(rel.get("score", 1.0)),
+                "db_source": rel.get("source", "")
+            }
+            edges_collection.insert(edge_doc)
+
+    print(f"Finished loading graph into ArangoDB: {graph_name}")
+
+    return db, graph
+
 
 def load_graph_data_pyg(load_dir, save_dir, save_filename='ikraph_graph_pyg.pt'):
     """
@@ -249,7 +355,7 @@ def load_graph_data_pyg(load_dir, save_dir, save_filename='ikraph_graph_pyg.pt')
     return data
 
 
-def load_graph_data(load_dir, save_dir, method = 'igraph', save_filename='ikraph_graph.gpickle'):
+def load_graph_data(load_dir, save_dir, save_filename='ikraph_graph.gpickle', method = 'netx'):
     """
     Load iKraph data into a graph using the specified method and save it.
 
@@ -278,4 +384,4 @@ if __name__ == "__main__":
     load_dir = 'retrieval_database'
     save_dir = 'retrieval_database'
     save_filename = 'ikraph_graph.gpickle'
-    load_graph_data(load_dir, save_dir, save_filename)
+    load_graph_data(load_dir, save_dir, save_filename = save_filename)
