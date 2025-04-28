@@ -1,0 +1,6 @@
+TODOs go here
+- Erica: Knowledge Graph for Omim. 
+    - steps to build a Knowledge Graph
+        - Preprocessing texts
+        - NER: Named-entity-recognition
+        - We will use the static knowledge graph iKGraph to begin with.
