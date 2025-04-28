@@ -15,7 +15,7 @@ from constants import ARANGO_DB_USERNAME, ARANGO_DB_PASSWORD, ARANGO_DB_NAME
 
 def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle'):
     """
-    Load iKraph knowledge graph data into a NetworkX graph and save it.
+    Load iKraph knowledge graph data into a NetworkX MultiGraph and save it.
 
     Args:
         load_dir (str): Directory where the iKraph JSON files are located.
@@ -23,10 +23,10 @@ def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle
         save_filename (str): Filename for the saved graph (default: 'ikraph_graph.gpickle').
 
     Returns:
-        G (networkx.Graph): Constructed NetworkX graph object.
+        G (networkx.MultiGraph): Constructed NetworkX graph object.
     """
-    # Initialize empty undirected graph
-    G = nx.Graph()
+    # Initialize empty undirected MultiGraph
+    G = nx.MultiGraph()
 
     # File paths
     load_dir = os.path.join(load_dir, 'iKraph_full')
@@ -57,26 +57,33 @@ def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle
     with open(pubmed_rel_file, 'r') as f:
         pubmed_relations = json.load(f)
 
-    for rel_key, rel_list in tqdm(pubmed_relations.items(), desc="Adding PubMed Edges"):
+    for rel in tqdm(pubmed_relations, desc="Adding PubMed Edges"):
+        rel_key = rel.get("id", "")
+        rel_list = rel.get("list", [])
         parts = rel_key.split('.')
-        if len(parts) < 6:
+        if len(parts) != 6:
             continue  # Skip malformed entries
         node1, node2, rel_id, corr_id, direction, method = parts
+
         for entry in rel_list:
+            if len(entry) != 4:
+                continue
             score, doc_id, prob, novelty = entry
-            G.add_edge(
-                node1,
-                node2,
-                source='PubMed',
-                relation_id=rel_id,
-                correlation_id=corr_id,
-                direction=direction,
-                method=method,
-                score=float(score),
-                probability=float(prob),
-                novelty=int(novelty),
-                doc_id=doc_id
-            )
+
+            if node1 in G and node2 in G:
+                G.add_edge(
+                    node1,
+                    node2,
+                    source='PubMed',
+                    relation_id=rel_id,
+                    correlation_id=corr_id,
+                    direction=direction,
+                    method=method,
+                    score=float(score),
+                    probability=float(prob),
+                    novelty=int(novelty),
+                    doc_id=doc_id
+                )
 
     print(f"Graph now has {len(G.edges)} edges after adding PubMed relationships.")
 
@@ -88,24 +95,16 @@ def load_graph_data_netx(load_dir, save_dir, save_filename='ikraph_graph.gpickle
     for rel in tqdm(db_relations, desc="Adding DB Edges"):
         node1 = rel.get("node_one_id")
         node2 = rel.get("node_two_id")
-        if node1 and node2:
-            # Add edge or update if exists
-            if G.has_edge(node1, node2):
-                # Append database source info to existing edge
-                existing = G.edges[node1, node2]
-                existing_sources = existing.get("sources", [])
-                existing_sources.append(rel.get("source", "Database"))
-                G.edges[node1, node2]["sources"] = existing_sources
-            else:
-                G.add_edge(
-                    node1,
-                    node2,
-                    source='Database',
-                    relationship_type=rel.get("relationship_type", "Unknown"),
-                    prob=float(rel.get("prob", 1.0)),
-                    score=float(rel.get("score", 1.0)),
-                    db_source=rel.get("source", "Unknown")
-                )
+        if node1 and node2 and node1 in G and node2 in G:
+            G.add_edge(
+                node1,
+                node2,
+                source='Database',
+                relationship_type=rel.get("relationship_type", "Unknown"),
+                prob=float(rel.get("prob", 1.0)),
+                score=float(rel.get("score", 1.0)),
+                db_source=rel.get("source", "Unknown")
+            )
 
     print(f"Graph now has {len(G.edges)} total edges after adding database relationships.")
 
