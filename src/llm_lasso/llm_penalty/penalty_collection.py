@@ -127,7 +127,8 @@ def collect_penalties(
     omim_api_key: str = "",
     parallel = True,
     n_threads = 8,
-    preselection_done = False
+    preselected_feature_names = None,
+    default_score = 1
 ):
     """
     Query features in batches and extract LLM-Lasso penalties.
@@ -151,8 +152,11 @@ def collect_penalties(
         print("Wiping save directory before starting.")
         wipe_llm_penalties(save_dir, params.has_rag())
     
-    total_features = len(feature_names[0]) if preselection_done else len(feature_names)
+    preselection_done = preselected_feature_names is not None
+    total_features = len(preselected_feature_names[0]) if preselection_done else len(feature_names)
     if preselection_done:
+        all_features = feature_names
+        feature_names = preselected_feature_names
         print(f"Processing ~{total_features} features for {len(feature_names)} splits...")
     else:
         print(f"Processing {total_features} features...")
@@ -258,6 +262,23 @@ def collect_penalties(
                 batch_scores[split][feat_idx] = batch_scores_temp[
                     start_idx_per_split[split] + score_idx
                 ]
+        
+        if preselection_done:
+            # fill in the non-selected features with default_score
+            selected_features = []
+            for split in range(len(batch_scores)):
+                sf_line = {}
+                for x in all_features[split]:
+                    sf_line[x] = batch_scores[len(sf_line)]
+                selected_features.append(sf_line)
+            
+            batch_scores = [
+                [default_score] * len(all_features) for _ in batch_scores
+            ]
+            
+            for (i, feature) in enumerate(all_features):
+                if feature in selected_features[split]:
+                    batch_scores[split][i] = selected_features[split][feature]
 
         if sum([len(bs) for bs in batch_scores]) == total_features:
             trial_scores.append({"iteration": trial + 1, "scores": batch_scores})

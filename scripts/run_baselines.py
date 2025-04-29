@@ -19,11 +19,11 @@ if __name__ == "__main__":
     parser = HfArgumentParser([Arguments])
     args = parser.parse_args_into_dataclasses()[0]
 
-    (x_train, _, y_train, _) = read_train_test_splits(args.split_dir, args.n_splits)
+    splits = read_train_test_splits(args.split_dir, args.n_splits)
 
-    args.max = min(args.max, len(x_train[0].columns)+1)
+    args.max = min(args.max, len(splits[0].x_train.columns)+1)
     args.step = min(args.step, args.max-args.min-1)
 
     # Run the baseline function
     run_all_baselines_for_splits(
-        x_train, y_train, args.save_dir, min=args.min, max=args.max, step=args.step, random_state=args.random_state)
+        splits, args.save_dir, min=args.min, max=args.max, step=args.step, random_state=args.random_state)

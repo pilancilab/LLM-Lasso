@@ -19,6 +19,7 @@ from sklearn.linear_model import LogisticRegression
 import random
 import json
 from llm_lasso.data_splits import read_train_test_splits
+from llm_lasso.task_specific_lasso.utils import TrainTest
 import xgboost as xgb
 import numpy as np
 
@@ -176,8 +177,7 @@ def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42)
 
 
 def run_all_baselines_for_splits(
-    x_train: list[pd.DataFrame], y_train: list[pd.Series],
-    save_dir="baselines/results", feature_files=None,
+    splits: list[TrainTest], save_dir="baselines/results", feature_files=None,
     min=0, max=161, step=160, random_state=42
 ):
     """
@@ -193,11 +193,11 @@ def run_all_baselines_for_splits(
     """
     os.makedirs(save_dir, exist_ok=True)
     # Datasets in the data directory
-    for split in tqdm(range(len(x_train))):
+    for split in tqdm(range(len(splits))):
         split_save_dir = os.path.join(save_dir, f"split{split}")
         os.makedirs(split_save_dir, exist_ok=True)
         run_all_baselines(
-            x_train[split], y_train[split], save_dir=split_save_dir,
+            splits[split].x_train, splits[split].y_train, save_dir=split_save_dir,
             min=min, max=max, step=step, random_state=random_state
         )
 

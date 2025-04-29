@@ -38,7 +38,7 @@ class LLMLassoExperimentConfig:
     correlation_thresh: float = 0.9
 
 
-def run_all_baselines_for_splits(
+def run_downstream_baselines_for_splits(
     splits: list[TrainTest],
     feature_baseline: dict[str, list[list[str]]],
     config: LLMLassoExperimentConfig

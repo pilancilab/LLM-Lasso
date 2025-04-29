@@ -102,7 +102,10 @@ def get_comp_df(importance_scores_dict, train_test_filename):
     Getting a pandas dataframe for LLM-Lasso performance on a dataset using penalty factors obtained 
     from a selection of methods.
     """
-    (x_train, x_test, y_train, y_test) = read_train_test_splits(train_test_filename, 10)
+
+    # TODO @nsagan: fix this for new experimental framework
+    raise NotImplementedError()
+    splits = read_train_test_splits(train_test_filename, 10)
     method_names = list(importance_scores_dict.keys())
     methods = [f"1/imp - {name}" for name in method_names] + ["Lasso"]
     res_df = run_repeated_llm_lasso_cv(

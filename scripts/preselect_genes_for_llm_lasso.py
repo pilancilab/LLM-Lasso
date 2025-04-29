@@ -35,7 +35,7 @@ def main(args: Arguments):
             split.x_train, split.y_train, method=args.method,
             k=args.n, random_state=args.random_state
         )
-        features.append(sorted(selected_features))
+        features.append(selected_features)
     
     os.makedirs(args.save_dir, exist_ok=True)
     with open(f"{args.save_dir}/genes_per_split.txt", "w") as f:
