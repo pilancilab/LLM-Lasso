@@ -30,6 +30,9 @@ class Arguments:
     num_threads: int = field(default=1, metadata={
         "help": "number of threads to use for prompting the LLM for scores. Parallelization ocurrs across batches. Default is singlethreaded."
     })
+    preselection_done: bool = field(default=False, metadata={
+        "help": "Whether the feature names are a result of preselect_genes_for_llm_lasso.py"
+    }) 
 
 
 if __name__ == "__main__":
@@ -39,14 +42,24 @@ if __name__ == "__main__":
     (penalty_params, args, llm_params) = parser.parse_args_into_dataclasses()
 
     # Load gene names
-    if args.feature_names_path.endswith(".pkl"):
-        with open(args.feature_names_path, 'rb') as file:
-            feature_names = pkl.load(file)
-    elif args.feature_names_path.endswith(".txt"):
-        with open(args.feature_names_path, 'r') as file:
-            feature_names = file.read().splitlines()
+    if args.preselection_done:
+        assert args.feature_names_path.endswith(".txt"), "Preselected genes must be a .txt file"
+        feature_names = []
+        with open(args.feature_names_path, "r") as file:
+            for line in file.readlines():
+                if "," not in line:
+                    continue
+                line = line.split(",")
+                feature_names.append([x.strip() for x in line])
     else:
-        raise ValueError("Unsupported file format. Use .pkl or .txt.")
+        if args.feature_names_path.endswith(".pkl"):
+            with open(args.feature_names_path, 'rb') as file:
+                feature_names = pkl.load(file)
+        elif args.feature_names_path.endswith(".txt"):
+            with open(args.feature_names_path, 'r') as file:
+                feature_names = file.read().splitlines()
+        else:
+            raise ValueError("Unsupported file format. Use .pkl or .txt.")
     
     print(f'Total number of features in processing: {len(feature_names)}.')
 
@@ -73,7 +86,8 @@ if __name__ == "__main__":
         params=penalty_params,
         omim_api_key=constants.OMIM_KEYS[0],
         n_threads=args.num_threads,
-        parallel=args.num_threads > 1
+        parallel=args.num_threads > 1,
+        preselection_done=args.preselection_done
     )
     print(f'Total number of scores collected: {len(all_scores)}.')
 

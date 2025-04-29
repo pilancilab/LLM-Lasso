@@ -126,7 +126,8 @@ def collect_penalties(
     params: PenaltyCollectionParams,
     omim_api_key: str = "",
     parallel = True,
-    n_threads = 8
+    n_threads = 8,
+    preselection_done = False
 ):
     """
     Query features in batches and extract LLM-Lasso penalties.
@@ -150,8 +151,13 @@ def collect_penalties(
         print("Wiping save directory before starting.")
         wipe_llm_penalties(save_dir, params.has_rag())
     
-    total_features = len(feature_names)
-    print(f"Processing {total_features} features...")
+    total_features = len(feature_names[0]) if preselection_done else len(feature_names)
+    if preselection_done:
+        print(f"Processing ~{total_features} features for {len(feature_names)} splits...")
+    else:
+        print(f"Processing {total_features} features...")
+        feature_names = [feature_names]
+    n_splits = len(feature_names)
 
     rag_or_plain = "RAG" if params.has_rag() else "plain"
 
@@ -174,9 +180,10 @@ def collect_penalties(
 
     while trial < params.n_trials:
         # maybe shuffle the feature names
-        idxs = np.arange(len(feature_names))
+        idxs = [np.arange(len(feat)) for feat in feature_names]
         if params.shuffle:
-            np.random.shuffle(idxs)
+            for i in range(len(idxs)):
+                np.random.shuffle(idxs[i])
 
         logging.info(f"Starting trial {trial + 1} out of {params.n_trials}")
         batch_scores = []
@@ -186,25 +193,32 @@ def collect_penalties(
 
         # loop through batches of genes
         args = []
-        for start_idx in tqdm(range(0, total_features, params.batch_size), desc=f"Prompt and context: trial {trial + 1}..."):
-            end_idx = min(start_idx + params.batch_size, total_features)
-            batch_features = [feature_names[i] for i in idxs[start_idx:end_idx]]
+        start_idx_per_split = [0]
+        total_features = 0
+        for (feat, split_idxs) in zip(feature_names, idxs):
+            start_idx_per_split.append(start_idx_per_split[-1] + len(feat))
+            for start_idx in tqdm(range(0, len(feat), params.batch_size), desc=f"Prompt and context: trial {trial + 1}..."):
+                end_idx = min(start_idx + params.batch_size, len(feat))
+                batch_features = [feat[i] for i in split_idxs[start_idx:end_idx]]
 
-            # Construct the query for this batch of features
-            query = create_general_prompt(prompt_file, category, batch_features)
+                # Construct the query for this batch of features
+                query = create_general_prompt(prompt_file, category, batch_features)
 
-            # If we're performing RAG, get the RAG context
-            context = get_rag_context(
-                batch_features, category, vectorstore,
-                model, omim_api_key,
-                pubmed_docs=params.pubmed_rag,
-                filtered_cancer_docs=params.filtered_cancer_doc_rag,
-                summarized_gene_docs=params.summarized_gene_doc_rag,
-                original_docs=params.omim_rag,
-                default_num_docs=params.omim_rag_num_docs,
-                small=params.small,
-            )
-            args.append((context, query, params, model.get_config(), batch_features))
+                # If we're performing RAG, get the RAG context
+                context = get_rag_context(
+                    batch_features, category, vectorstore,
+                    model, omim_api_key,
+                    pubmed_docs=params.pubmed_rag,
+                    filtered_cancer_docs=params.filtered_cancer_doc_rag,
+                    summarized_gene_docs=params.summarized_gene_doc_rag,
+                    original_docs=params.omim_rag,
+                    default_num_docs=params.omim_rag_num_docs,
+                    small=params.small,
+                )
+                args.append((context, query, params, model.get_config(), batch_features))
+            total_features += len(feat)
+
+        batch_scores_temp = []
         if parallel: 
             with Pool(n_threads) as p:
                 batch_scores_temp = []
@@ -212,13 +226,8 @@ def collect_penalties(
                 print()
                 for (sc, res) in outputs:
                     batch_scores_temp.extend(sc)
-                    results.extend(res)
-
-                batch_scores = [0] * len(idxs)
-                for (score_idx, feat_idx) in enumerate(idxs):
-                    batch_scores[feat_idx] = batch_scores_temp[score_idx] 
+                    results.append(res)
         else:
-            batch_scores = []
             for (context, query, _, _, batch_features) in tqdm(args, desc=f"LLM response: trial {trial + 1}..."):
                 # Construct the prompt
                 if context != "":
@@ -238,13 +247,19 @@ def collect_penalties(
                 )
 
                 logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
-                batch_scores.extend(batch_scores_partial)
+                batch_scores_temp.extend(batch_scores_partial)
                 logging.info(batch_scores_partial)
                 model.maybe_add_to_memory(query, output)
                 results.append(output)
                 # end batches for loop
+        batch_scores = [[0] * len(split_idxs) for split_idxs in idxs]
+        for (split, split_idxs) in enumerate(idxs):
+            for score_idx, feat_idx in enumerate(split_idxs):
+                batch_scores[split][feat_idx] = batch_scores_temp[
+                    start_idx_per_split[split] + score_idx
+                ]
 
-        if len(batch_scores) == total_features:
+        if sum([len(bs) for bs in batch_scores]) == total_features:
             trial_scores.append({"iteration": trial + 1, "scores": batch_scores})
 
             # Incrementally save progress after each trial
@@ -260,7 +275,13 @@ def collect_penalties(
 
     # Calculate final scores averaged across trials
     if trial_scores:
-        final_scores = [sum(scores) / len(scores) for scores in zip(*[trial["scores"] for trial in trial_scores])]
+        final_scores = []
+        for i in range(n_splits):
+            final_scores.append([
+                sum(scores) / len(scores) for scores in zip(*[np.array(trial["scores"][i]) for trial in trial_scores])
+            ])
+        if not preselection_done:
+            final_scores = final_scores[0]
     else:
         final_scores = []
 
