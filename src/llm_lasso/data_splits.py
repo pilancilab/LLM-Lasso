@@ -65,6 +65,7 @@ def folds(ndata, nfolds):
     of each class.
     """
     indices = np.arange(ndata)
+    np.random.shuffle(indices)
 
     # Distribute indices into folds
     folds = [[] for _ in range(nfolds)]
@@ -79,6 +80,7 @@ def two_folds(ndata, ratio_test=0.5):
     of each class.
     """
     indices = np.arange(ndata)
+    np.random.shuffle(indices)
     nfolds = 2
 
     # Distribute indices into folds

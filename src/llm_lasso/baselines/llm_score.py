@@ -16,6 +16,9 @@ from llm_lasso.utils.data import convert_pkl_to_txt
 from llm_lasso.llm_penalty.query_scores import query_scores_with_retries
 import json
 from tqdm import tqdm
+from sys import stdout
+from multiprocessing import Pool
+
 warnings.filterwarnings("ignore")  # Suppress warnings
 
 
@@ -34,6 +37,30 @@ def wipe_save_dir(save_dir):
             os.remove(file_path)
             logging.info(f"Removed file: {file_path}")
 
+def penalties_helper(
+    args: tuple[
+        str, tuple[str], list[str]
+    ]
+):
+    (full_prompt, model_args, batch_features) = args
+    model = LLMQueryWrapperWithMemory(*model_args)
+    # Construct the prompt
+    system_message = "For each feature input by the user, your task is to provide a feature importance score (between 0 and 1; larger value indicates greater importance) for predicting whether an individual will subscribe to a term deposit and a reasoning behind how the importance score was assigned."
+
+
+    # Query the LLM, with special handling if the LLM allows
+    # structured queries
+    batch_scores_partial, output = query_scores_with_retries(
+        model, system_message, full_prompt,
+        batch_features
+    )
+
+    print(".", end="")
+    stdout.flush()
+    logging.info(batch_scores_partial)
+    return (batch_scores_partial, output)
+
+
 def query_scores(
     category: str,
     feature_names: list[str],
@@ -42,7 +69,9 @@ def query_scores(
     model: LLMQueryWrapperWithMemory,
     batch_size = 30,
     n_trials = 1,
-    wipe = False
+    wipe = False,
+    parallel = False,
+    n_threads = 1,
 ):
     """
     Query features in batches and extract LLM-Score importances.
@@ -80,24 +109,40 @@ def query_scores(
     for trial in range(start_trial, n_trials):
         logging.info(f"Starting trial {trial + 1} out of {n_trials}")
         batch_scores = []
+        
 
-        for start_idx in tqdm(range(0, total_features, batch_size), desc=f'Processing trial {trial + 1}...'):
-            end_idx = min(start_idx + batch_size, total_features)
-            batch_features = feature_names[start_idx:end_idx]
-            # Construct the prompt
-            prompt = create_general_prompt(prompt_filename, category, batch_features)
-            system_message = "For each feature input by the user, your task is to provide a feature importance score (between 0 and 1; larger value indicates greater importance) for predicting whether an individual will subscribe to a term deposit and a reasoning behind how the importance score was assigned."
+        if parallel:
+             with Pool(n_threads) as p:
+                batch_scores = []
+                outputs = p.map(penalties_helper, [
+                    (
+                        create_general_prompt(prompt_filename, category, feature_names[start_idx:start_idx+batch_size]),
+                        model.get_config(),
+                        feature_names[start_idx:start_idx+batch_size]
+                    ) for start_idx in range(0, total_features, batch_size)
+                ])
+                print()
+                for (sc, res) in outputs:
+                    batch_scores.extend(sc)
+                    results.append(res)
+        else:
+            for start_idx in tqdm(range(0, total_features, batch_size), desc=f'Processing trial {trial + 1}...'):
+                end_idx = min(start_idx + batch_size, total_features)
+                batch_features = feature_names[start_idx:end_idx]
+                # Construct the prompt
+                prompt = create_general_prompt(prompt_filename, category, batch_features)
+                system_message = "For each feature input by the user, your task is to provide a feature importance score (between 0 and 1; larger value indicates greater importance) for predicting whether an individual will subscribe to a term deposit and a reasoning behind how the importance score was assigned."
 
-            # Query the LLM, with special handling if the LLM allows
-            # structured queries
-            batch_scores_partial, response = query_scores_with_retries(
-                model, system_message, prompt,
-                batch_features
-            )
+                # Query the LLM, with special handling if the LLM allows
+                # structured queries
+                batch_scores_partial, response = query_scores_with_retries(
+                    model, system_message, prompt,
+                    batch_features
+                )
 
-            logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
-            batch_scores.extend(batch_scores_partial)
-            results.append(response)
+                logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
+                batch_scores.extend(batch_scores_partial)
+                results.append(response)
         # end batch for loop
         # Check if the trial scores match the total genes
         if len(batch_scores) == total_features:
@@ -143,7 +188,9 @@ def llm_score(
     batch_size = 30,
     n_trials = 1,
     wipe = False,
-    k_min=0, k_max=50, step=5
+    k_min=0, k_max=50, step=5,
+    n_threads=1,
+    parallel=False
 ):
     """
     Select top genes based on LLM-generated importance scores and save results for multiple k values.
@@ -165,7 +212,8 @@ def llm_score(
     """
     _, final_scores = query_scores(
         category, feature_names, prompt_filename,
-        save_dir, model, batch_size, n_trials, wipe
+        save_dir, model, batch_size, n_trials, wipe,
+        n_threads=n_threads, parallel=parallel
     )
 
     # Get sorted indices of the scores in descending order

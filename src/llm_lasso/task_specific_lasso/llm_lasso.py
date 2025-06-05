@@ -6,6 +6,13 @@ from adelie.solver import grpnet
 from llm_lasso.task_specific_lasso.utils import *
 from tqdm import tqdm
 from dataclasses import dataclass
+from enum import IntEnum
+
+
+class CrossValMetric(IntEnum):
+    ERROR = 0
+    AUROC = 1
+    # LOSS = 2
 
 
 @dataclass
@@ -33,6 +40,7 @@ class LLMLassoExperimentConfig:
     max_imp_power: int = 3
     score_type: int = PenaltyType.PF
     adaptive_lasso_relative_imp_base: float = 0.2
+    cross_val_metric: int = CrossValMetric.ERROR
 
     remove_correlated_features: bool = False
     correlation_thresh: float = 0.9
@@ -93,7 +101,7 @@ def run_downstream_baselines_for_splits(
                     seed=config.seed,
                     n_threads=config.n_threads
                 ) for features in split_baseline[model_name]
-            ], ignore_index=True).copy() for model_name in split_baseline
+            ], ignore_index=True) for model_name in split_baseline
         ], ignore_index=True).copy()
         res["split"] = split_idx
         res["model"] = "Baseline"
@@ -258,6 +266,7 @@ def run_llm_lasso_cv_for_splits(
     splits: list[TrainTest],
     scores: dict[str, np.array],
     config: LLMLassoExperimentConfig,
+    preselected_genes: list[list[str]] = None,
     score_trial_list: dict[str, list[np.array]] = None,
     verbose: bool = False
 ):
@@ -288,21 +297,53 @@ def run_llm_lasso_cv_for_splits(
             if verbose:
                 print(f"Running model: {model}")
             pf = scores[model]
+            this_model_score_trials = score_trial_list[model] \
+                if (score_trial_list is not None and model in score_trial_list) \
+                    else None
             if len(pf.shape) == 2:
                 pf = pf[split_idx, :]
+                if this_model_score_trials is not None:
+                    this_model_score_trials = this_model_score_trials[:, split_idx]
+
+            curr_split = splits[split_idx]
+            excluded_features = None
+            if preselected_genes is not None:
+                genes = preselected_genes[split_idx]
+                all_genes = {x: i for i, x in enumerate(splits[split_idx].x_train.columns)}
+                gene_idxs = [all_genes[x] for x in genes]
+                curr_split = TrainTest(
+                    splits[split_idx].x_train[genes],
+                    splits[split_idx].x_test[genes],
+                    splits[split_idx].y_train,
+                    splits[split_idx].y_test,
+                )
+                if this_model_score_trials is not None:
+                    this_model_score_trials = this_model_score_trials[genes, :]
+                pf = pf[gene_idxs]
+                excluded_features = list(set(splits[split_idx].x_train.columns) - set(genes))
+
             res = run_llm_lasso_and_maybe_remove_correlated_features(
-                train_test=splits[split_idx],
+                train_test=curr_split,
                 scores=pf,
                 config=config,
-                score_trial_list=score_trial_list[model] \
-                    if (score_trial_list is not None and model in score_trial_list) \
-                        else None,
+                score_trial_list=this_model_score_trials,
                 verbose=verbose,
                 max_imp_pow=config.max_imp_power
             )
             res["split"] = split_idx
             res["model"] = model
             res["is_baseline"] = False
+            if excluded_features is not None:
+                res = pd.concat([res, pd.DataFrame({
+                    f"{feat}_Selected": [False] * res.shape[0] for feat in excluded_features
+                })], axis=1).copy()
+                res = pd.concat([res, pd.DataFrame({
+                    f"{feat}_Sign": [0] * res.shape[0] for feat in excluded_features
+                })], axis=1).copy()
+                res = pd.concat([res, pd.DataFrame({
+                    f"{feat}_Magnitude": [0] * res.shape[0] for feat in excluded_features
+                })], axis=1).copy()
+
             if all_results is None:
                 all_results = res
             else:
@@ -361,7 +402,8 @@ def run_llm_lasso_and_maybe_remove_correlated_features(
             downstream_l2=config.lasso_downstream_l2,
             lmda_path_size=config.lambda_path_size,
             verbose=verbose,
-            run_pure_lasso_after=config.run_pure_lasso_after
+            run_pure_lasso_after=config.run_pure_lasso_after,
+            cross_val_metric=config.cross_val_metric
         )
     
     # Change importance scores to penalties, if relevant
@@ -439,7 +481,8 @@ def run_llm_lasso_and_maybe_remove_correlated_features(
         relaxed=config.relaxed_lasso,
         downstream_l2=config.lasso_downstream_l2,
         lmda_path_size=config.lambda_path_size,
-        verbose=verbose
+        verbose=verbose,
+        cross_val_metric=config.cross_val_metric
     )
 
     # Add feature selection data for the removed features to the dataframe,
@@ -475,6 +518,7 @@ def llm_lasso_cv(
     downstream_l2=False,
     run_pure_lasso_after=None,
     verbose=False,
+    cross_val_metric=CrossValMetric.ERROR
 ):
     """
     Runs LLM-Lasso for a specified training/test split, using cross-validation
@@ -517,7 +561,6 @@ def llm_lasso_cv(
     Returns: DataFrame with test error, AUROC, selected features, and other
         metadata for each split. 
     """
-
     (x_train, x_test, y_train, y_test) = train_test.to_tuple()
 
     multinomial = not regression and len(y_train.unique()) > 2
@@ -540,9 +583,9 @@ def llm_lasso_cv(
         pf_list.append(penalty ** i)
         pf_types.append(f"1/imp^{i}")
 
-    if scores_list:
+    if scores_list is not None:
         for trial in range(len(scores_list)):
-            for i in range(0, max_imp_pow+1):
+            for i in range(1, max_imp_pow+1):
                 trial_penalty = scores_list[trial] \
                     if score_type == PenaltyType.PF \
                     else 1 / scores_list[trial]
@@ -595,7 +638,10 @@ def llm_lasso_cv(
             continue
 
         # cross-validation metric
-        cvm = fit.test_error
+        if cross_val_metric == CrossValMetric.ERROR:
+            cvm = fit.test_error
+        else:
+            cvm = -fit.roc_auc
 
         non_zero = [
             np.count_nonzero(np.mean(np.abs(clss), axis=0) > tolerance)
@@ -608,6 +654,8 @@ def llm_lasso_cv(
 
         cv_area = cve(cvm, non_zero, ref_cvm, ref_nonzero)
         if cv_area > best_cv_area:
+            if verbose:
+                print(pf_type, cv_area, best_cv_area)
             best_cv_area = cv_area
             best_model = pf_type[i]
             best_model_pf = pf

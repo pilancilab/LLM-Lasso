@@ -245,7 +245,7 @@ def cve(cvm, non_zero, ref_cvm, ref_non_zero):
     y2 = df2['y2'].values
 
     # Interpolate y1 values to match x2
-    interp_func = interp1d(x1, y1, bounds_error=False, fill_value='extrapolate')
+    interp_func = interp1d(x1, y1, bounds_error=False, fill_value=y1[-1])
     y1_interp = interp_func(x2)
 
     # Calculate area using the trapezoidal rule

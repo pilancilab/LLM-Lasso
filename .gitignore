@@ -10,3 +10,4 @@ testing_notebooks/
 test/
 llm_lasso_old.py
 retrieval_database/
+plots/

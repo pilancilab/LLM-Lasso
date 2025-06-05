@@ -3,6 +3,7 @@
 2 indicates a feature strongly associated with the target variable (i.e., it should be penalized the least by Lasso).
 5 indicates a feature with minimal relevance to the target variable (i.e., it should be penalized the most by Lasso).
 Base these penalty factors on general feature relevance related to the target variable. Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each feature’s importance in predicting this target.
+
 **Instructions**:
 1. You will receive a list of features: {genes}.
 2. For each feature, produce an integer penalty factor from 2 to 5.

@@ -30,7 +30,7 @@ class Arguments:
     num_threads: int = field(default=1, metadata={
         "help": "number of threads to use for prompting the LLM for scores. Parallelization ocurrs across batches. Default is singlethreaded."
     })
-    preselected_features_path: bool = field(default=None, metadata={
+    preselected_features_path: str = field(default=None, metadata={
         "help": "If applicable, .txt file output of preselect_genes_for_llm_lasso.py"
     }) 
     default_score:  float = field(default=1, metadata={

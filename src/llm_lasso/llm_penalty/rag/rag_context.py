@@ -47,7 +47,7 @@ def get_rag_context(
         ) + "\n"
 
     if original_docs:
-        print("Retrieving original docs")
+        print("Retrieving simple OMIM rag docs")
         docs = retrieval_docs(
             batch_genes, category,
             vectorstore.as_retriever(search_kwargs={"k": default_num_docs}),

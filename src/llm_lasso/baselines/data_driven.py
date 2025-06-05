@@ -28,15 +28,15 @@ import numpy as np
 def xgboost(X: pd.DataFrame, y: pd.Series, k):
     unique = y.unique()
     if len(unique) <= 2:
-       objective = 'binary:logistic'
-    elif np.issubdtype(y.to_numpy().dtype, np.integer):
-        objective = 'multi:softmax'
+        objective = 'binary:logistic'
+        model = xgb.XGBClassifier(objective=objective).fit(X, y)
+        features = list(X.columns[np.argsort(-model.feature_importances_)][:k])
+        return X[features], features
     else:
         objective = 'reg:squarederror'
-
-    model = xgb.XGBClassifier(objective=objective).fit(X, y)
-    features = list(X.columns[np.argsort(-model.feature_importances_)][:k])
-    return X[features], features
+        model = xgb.XGBRegressor(objective=objective).fit(X, y)
+        features = list(X.columns[np.argsort(-model.feature_importances_)][:k])
+        return X[features], features
 
 
 # 1. Filtering by Mutual Information (MI)

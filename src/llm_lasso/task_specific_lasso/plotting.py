@@ -19,6 +19,7 @@ def plot_format_generator(colors: list[str]):
 LASSO_COLOR = ["black"]
 BASELINE_COLORS = ["#56B4E9", "#009292", "#117733", "#490092", "#924900"]
 LLM_LASSO_COLORS = ["#DC267F", "#FE6100", "#FFB000"]
+# LLM_LASSO_COLORS = ["#FE6100", "#FFB000"]
 
 
 def plot_heatmap(
@@ -74,7 +75,7 @@ def plot_heatmap(
     ax.collections[0].cmap.set_bad('lightgray')
 
     plt.xlabel("Model", fontdict={"size": 17})
-    plt.ylabel("Feature", fontdict={"size": 17})
+    plt.ylabel("Gene", fontdict={"size": 17})
     plt.tick_params("both", labelsize=11)
     title = "Feature Usage Across Models"
     if task:
@@ -97,7 +98,11 @@ def plot_llm_lasso_result(
     n_gene_count_bins=20,
     bolded_methods=[],
     plot_error_bars = True,
-    x_lim=None
+    x_lim=None,
+    test_error_y_lim=None,
+    auroc_y_lim=None,
+    task=None,
+    small_plot=False
 ):
     """
     Plot result of LLM-Lasso alongside baselines.
@@ -126,6 +131,7 @@ def plot_llm_lasso_result(
     # Fill in points where the model does not select that number of features
     # (e.g., when Lasso refuses to select more than a certain number of
     # features, depending on the penalty factors)
+
     for method_model in all_results["method_model"].unique():
         for split in range(n_splits):
             prev_row = None
@@ -142,7 +148,8 @@ def plot_llm_lasso_result(
                 elif row.shape[0] == 0:
                     if prev_row is not None:
                         prev_row["n_features"] = nfeat
-                        all_results = pd.concat([all_results, prev_row], ignore_index=True).copy()
+                        all_results = pd.concat([all_results, prev_row], ignore_index=True)
+    all_results = all_results.copy()
 
     # Infer some properties from the dataframe
     baseline_names = all_results[all_results["is_baseline"] == True]["method_model"].unique()
@@ -160,22 +167,32 @@ def plot_llm_lasso_result(
         .agg(
             mean_metric=('test_error', 'mean'),
             sd_metric=('test_error', 'std'),
+            qlow_metric=('test_error', lambda x: x.quantile(0.1)),
+            qhigh_metric=('test_error', lambda x: x.quantile(0.9)),
             mean_auc=('auroc', 'mean'),
+            qlow_auc=('auroc', lambda x: x.quantile(0.1)),
+            qhigh_auc=('auroc', lambda x: x.quantile(0.9)),
             sd_auc=('auroc', 'std'),
             **{
                 col: ('mean', col)
                 for col in all_results.columns if col.startswith('feature')
             }
-        ).reset_index() 
+        ).reset_index()
     )
    # Assign specific colors to each method group
-    methods = aggregated_results['method_model'].unique()
+    methods = aggregated_results['method_model'].unique().tolist()
     lasso_method = ["Lasso"] if "Lasso" in methods else []
     baseline_methods = baseline_names
 
     # Anything that's not Lasso or a baseline defaults to being in "our_methods"
     our_methods = [method for method in methods if \
                    method not in lasso_method and method not in baseline_methods]
+    if lasso_method[0] in methods:
+        methods.remove(lasso_method[0])
+    for method in our_methods:
+        methods.remove(method)
+    
+    methods = methods + lasso_method + our_methods
 
     color_and_marker = {}
     bolded = {}
@@ -197,14 +214,16 @@ def plot_llm_lasso_result(
     filtered_data = aggregated_results[aggregated_results['method_model'].isin(methods)]
 
     metrics = [
-        ("mean_metric", "sd_metric", "Test Error"),
-        ("mean_auc", "sd_auc", "AUROC")
+        ("mean_metric", "sd_metric", "qlow_metric", "qhigh_metric", "Test Error"),
+        ("mean_auc", "sd_auc", "qlow_auc", "qhigh_auc", "AUROC")
     ]
     if regression:
         metrics = metrics[:1] # no AUROC
 
-    for (mean, sd, label) in metrics:
-        plt.figure(figsize=(16, 8))
+    for (mean, sd, qlow, qhigh, label) in metrics:
+        # fig = plt.figure(figsize=(7, 6))
+        fig = plt.figure(figsize=(10, 6))
+        ax = fig.add_axes([0, 0, 0.8, 1])
         for (i, method) in enumerate((methods)):
             color, marker = color_and_marker[method]
             data = filtered_data.where(filtered_data["method_model"] == method)
@@ -212,17 +231,26 @@ def plot_llm_lasso_result(
             xaxis_data = data["n_features"][:]
             data_mean = data[mean]
             data_sd = data[sd]
+            data_qlow = data[qlow]
+            data_qhigh = data[qhigh]
             if x_lim:
                 idxs = [i for (i,x) in enumerate(xaxis_data) if x <= x_lim]
                 xaxis_data = xaxis_data[idxs]
                 # print(xaxis_data)
                 data_mean = data_mean[idxs]
                 data_sd = data_sd[idxs]
+                data_qlow = data_qlow[idxs]
+                data_qhigh = data_qhigh[idxs]
 
-            plt.plot(
+            if small_plot:
+                linewidth = 4 if bolded[method] else 3
+            else:
+                linewidth = 3.5 if bolded[method] else 2.5
+
+            ax.plot(
                 xaxis_data, data_mean,
                 "-D" if bolded[method] else f'-{marker}',
-                linewidth=3 if bolded[method] else 2, color=color,
+                linewidth=linewidth, color=color,
                 markersize=12 if bolded[method] else 9,
                 label=method
             )
@@ -230,17 +258,42 @@ def plot_llm_lasso_result(
             if plot_error_bars:
                 error_bars(
                     x=xaxis_data,
-                    upper=data_mean + data_sd,
-                    lower=data_mean - data_sd,
+                    upper=data_qhigh,
+                    lower=data_qlow,
                     color=color,
                     width=0,
                     x_offset=i*0.005
                 )
-            plt.grid(True, alpha=0.5)
-        plt.ylabel(label, fontdict={"size": 24})
-        plt.xlabel("Number of Features", fontdict={"size": 24}) 
-        plt.legend(fontsize=20, bbox_to_anchor=(1.02, 0.5), loc="center left")
-        plt.tick_params(axis='both', labelsize=20)  # Change font size for both x and y axes
-        plt.title(f"LLM-LASSO Performance across {n_splits} Splits", fontdict={"size": 30})
+            plt.grid(True, alpha=0.7)
+
+        if small_plot:
+            plt.ylabel(label, fontdict={"size": 40})
+            plt.xlabel("Number of Features", fontdict={"size": 40}) 
+            if test_error_y_lim and label == "Test Error":
+                plt.ylim(*test_error_y_lim)
+            elif auroc_y_lim and label == "AUROC":
+                plt.ylim(*auroc_y_lim)
+            plt.legend(fontsize=34, bbox_to_anchor=(1.02, 0.5), loc="center left")
+            # plt.tight_layout()
+            plt.tick_params(axis='both', labelsize=30)  # Change font size for both x and y axes
+            if task is None:
+                plt.title(f"LLM-LASSO Performance ({n_splits} Splits)\n", fontdict={"size": 44})
+            else:
+                plt.title(f"LLM-LASSO Performance ({task}, {n_splits} Splits)\n", fontdict={"size": 44})
+
+        else:
+            plt.ylabel(label, fontdict={"size": 36})
+            plt.xlabel("Number of Features", fontdict={"size": 36}) 
+            if test_error_y_lim and label == "Test Error":
+                plt.ylim(*test_error_y_lim)
+            elif auroc_y_lim and label == "AUROC":
+                plt.ylim(*auroc_y_lim)
+            plt.legend(fontsize=32, bbox_to_anchor=(1.02, 0.5), loc="center left")
+            # plt.tight_layout()
+            plt.tick_params(axis='both', labelsize=28)  # Change font size for both x and y axes
+            if task is None:
+                plt.title(f"LLM-LASSO Performance ({n_splits} Splits)\n", fontdict={"size": 40})
+            else:
+                plt.title(f"LLM-LASSO Performance ({task}, {n_splits} Splits)\n", fontdict={"size": 40})
 
         
