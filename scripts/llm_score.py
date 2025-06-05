@@ -30,6 +30,9 @@ class Arguments:
         "help": "Number of genes to pass into the LLM at once"})
     n_trials: int = field(default=1, metadata={
         "help": "Number of trials to average over"})
+    num_threads: int = field(default=1, metadata={
+        "help": "number of threads to use for prompting the LLM for scores. Parallelization ocurrs across batches. Default is singlethreaded."
+    })
     wipe: bool = field(default=False, metadata={
         "help": "Wipe the save directory before starting"})
     
@@ -81,7 +84,9 @@ if __name__ == "__main__":
         wipe=args.wipe,
         k_min=args.k_min,
         k_max=args.k_max,
-        step=args.step
+        step=args.step,
+        n_threads=args.num_threads,
+        parallel=args.num_threads > 1,
     )
 
     print("Top-k gene selection complete. Results saved.")

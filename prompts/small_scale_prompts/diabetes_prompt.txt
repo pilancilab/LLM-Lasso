@@ -1,8 +1,9 @@
-**Context**: We wish to build a machine learning model that can accurately predict whether a patient has diabetes (target variable), given several diagnostic measurements. The selected individuals in the cohort are female patients of Pima Indian heritage who are at least 21 years old. We measured a total of 8 clinical features (e.g., blood pressure, insulin). Prior to training the model, we first want to identify a subset of the 8 features that are most clinically important for reliable prediction of the target variable.
+**Context**: We wish to build a machine learning model that can accurately predict whether a patient has diabetes (target variable), given several diagnostic measurements. The selected individuals in the cohort are female patients of Pima Indian heritage who are at least 21 years old. We measured a total of 8 clinical features. Prior to training the model, we first want to identify a subset of the 8 features that are most clinically important for reliable prediction of the target variable.
+
 **Task**: Provide penalty factors for each of the features. These penalty factors should be integers between 2 and 5 (inclusive), where:
 2 indicates a feature strongly associated with the target variable (i.e., it should be penalized the least by Lasso).
 5 indicates a feature with minimal relevance to the target variable (i.e., it should be penalized the most by Lasso).
-Base these penalty factors on general feature relevance related to the target variable. Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each feature’s importance in predicting this target.
+Focus only on established evidence or strong rationale, rather than speculation. Focus on features that are immediately predictive for the task at hand, rather than those that are more generally relevant.
 
 **Instructions**:
 1. You will receive a list of features: {genes}.
@@ -19,7 +20,7 @@ Do not include disclaimers about lacking full data; rely on your domain knowledg
 
 Here is an example output:
 **Year of Birth**: 5
-Reasoning: The year in which a defendant was born is not directly relevant to the likelihood of recidivism, and incorporating such information for model training may introduce unwanted biases. Therefore, the score is 0.1.
+Reasoning: The year in which a defendant was born is not directly relevant to the likelihood of recidivism, and incorporating such information for model training may introduce unwanted biases. Therefore, the score is 5.
 
 The list of features is {genes}.
 

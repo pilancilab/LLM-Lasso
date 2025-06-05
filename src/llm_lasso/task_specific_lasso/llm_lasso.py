@@ -518,6 +518,7 @@ def llm_lasso_cv(
     downstream_l2=False,
     run_pure_lasso_after=None,
     verbose=False,
+    max_n_features_cvm=30,
     cross_val_metric=CrossValMetric.ERROR
 ):
     """
@@ -652,7 +653,12 @@ def llm_lasso_cv(
             ref_cvm = cvm
             ref_nonzero = non_zero
 
-        cv_area = cve(cvm, non_zero, ref_cvm, ref_nonzero)
+        if max_n_features_cvm is not None:
+            idx = np.where(np.array(non_zero) <= max_n_features_cvm)[0][-1]+1
+            cv_area = cve(cvm[:idx], non_zero[:idx], ref_cvm, ref_nonzero)
+        else:
+            cv_area = cve(cvm, non_zero, ref_cvm, ref_nonzero)
+
         if cv_area > best_cv_area:
             if verbose:
                 print(pf_type, cv_area, best_cv_area)

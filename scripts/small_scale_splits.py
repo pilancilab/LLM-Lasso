@@ -37,7 +37,7 @@ if __name__ == "__main__":
         X, y, feat_names, _ = load_uci_data("Wine")
         X = pd.DataFrame(X, columns=feat_names)
         y = pd.Series(y)
-        save_train_test_splits(X, y, args.save_dir, balanced=True, n_splits=args.n_splits, seed=args.seed)
+        save_train_test_splits(X, y, args.save_dir, balanced=False, n_splits=args.n_splits, seed=args.seed)
     elif args.dataset == "Diabetes":
         X, y, feat_names, _ = load_kaggle_data("Diabetes")
         X = pd.DataFrame(X, columns=feat_names)

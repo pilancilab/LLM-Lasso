@@ -1,5 +1,0 @@
-In using gene expression levels for classifying ETP-All vs. non-ETP-All, assign each of these genes a score between 0.1 and 0.9, where 0.1 means very important and 0.9 means less important. It's ok to assign many genes 0.9 if they aren't super important. It's normal for only a few genes to be important.
-
-Think carefully for each gene. Format your response as a JSON.
-
-{genes}

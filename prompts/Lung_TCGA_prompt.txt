@@ -1,0 +1,16 @@
+**Context**: We have bulk RNA sequencing data derived from lung cancer samples. The dataset includes 1017 samples and 1000 genes. We wish to build a statistical (Lasso) model that classifies samples into the category "lung adenocarcinoma (LUAD) and lung squamous cell carcinoma (LUSC)".
+
+**Task**: Assign each gene on the following list a penalty score between 0.1 and 1 based on its importance in distinguishing lung adenocarcinoma (LUAD) from lung squamous cell carcinoma (LUSC). A lower penalty (e.g., 0.1) indicates a gene that is highly predictive for differentiating LUAD from LUSC, while a higher penalty (e.g., 1) denotes relatively minor importance for distinguishing these two subtypes.
+
+Focus only on established evidence or strong biological rationale, rather than speculation, and be mindful that only a limited subset of genes is truly predictive for this distinction. Expect most genes to receive a score close to 1, and very few genes (maybe none) to receive a score close to 0.1. If a gene is only generally relevant to lung cancer and does not specifically help distinguish LUAD from LUSC, assign it a penalty closer to 1.
+
+**Instructions**:
+1. You will receive a list of genes: {genes}.
+2. For each gene, produce a positive float penalty factor.
+3. List the genes and their penalty factors in the exact same order they appear in the list. Make sure to spell the gene name exactly as stated in the list 
+- For each gene, include ALL its letters: for instance, "BYSL" is NOT "BYS"
+4. For each penalty factor, provide a brief statement of how you arrived at that factor or why the gene is more or less relevant to "{category}."
+
+Do not include disclaimers about lacking full data; rely on general cancer genomics and pathway relevance.
+
+The list of genes is {genes}.

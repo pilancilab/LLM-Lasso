@@ -1,1 +1,0 @@
-Please briefly summarize the following text with a focus on important details on gene {category} and exclude unrelated details:

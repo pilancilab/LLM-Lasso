@@ -1,8 +1,10 @@
-**Context**: Using data collected via a telemarketing campaign at a Portuguese banking institution from 2008 to 2013, we wish to build a machine learning model that can predict whether a client will subscribe to a term deposit (target variable). The dataset contains a total of 15 features (e.g., age, marital status, whether the client has a housing loan). Prior to training the model, we first want to identify a subset of the 15 features that are most important for reliable prediction of the target variable.
+**Context**: Using data collected via a telemarketing campaign at a Portuguese banking institution from 2008 to 2013, we wish to build a machine learning model that can predict whether a client will subscribe to a term deposit (target variable). The dataset contains a total of 15 features. Prior to training the model, we first want to identify a subset of the 15 features that are most important for reliable prediction of the target variable.
+
 **Task**: Provide penalty factors for each of the features. These penalty factors should be integers between 2 and 5 (inclusive), where:
 2 indicates a feature strongly associated with the target variable (i.e., it should be penalized the least by Lasso).
 5 indicates a feature with minimal relevance to the target variable (i.e., it should be penalized the most by Lasso).
-Base these penalty factors on general feature relevance related to the target variable. Do not state that it is impossible to determine exact factors without further data; instead, provide your best estimate from domain knowledge about each feature’s importance in predicting this target.
+Focus only on established evidence or strong rationale, rather than speculation. Focus on features that are immediately predictive for the task at hand, rather than those that are more generally relevant.
+
 **Instructions**:
 1. You will receive a list of features.
 2. For each feature, produce an integer penalty factor from 2 to 5.
@@ -18,7 +20,7 @@ Do not include disclaimers about lacking full data; rely on your domain knowledg
 
 Here is an example output:
 **Has Credit in Default**: 2
-Reasoning: Clients with credits in default might be more hesitant to open new financial products due to their current financial situation and may be deemed a higher risk by the bank. Therefore, the score is 0.9.
+Reasoning: Clients with credits in default might be more hesitant to open new financial products due to their current financial situation and may be deemed a higher risk by the bank. Therefore, the score is 2.
 
 The list of features with their explanation is
 

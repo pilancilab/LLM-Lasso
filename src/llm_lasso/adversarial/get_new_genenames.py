@@ -42,7 +42,7 @@ def get_new_genenames(
     with open(save_dir + "/new_genenames.pkl", "wb") as f:
         pkl.dump(new_genenames, f)
     with open(save_dir + "/new_genenames.txt", "w") as f:
-        f.write(str(new_genenames))
+        f.writelines([x + "\n" for x in new_genenames])
 
 def get_maybe_top_genes(genenames, category, retriever, min_doc_count=1):
     """

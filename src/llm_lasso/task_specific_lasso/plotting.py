@@ -19,7 +19,6 @@ def plot_format_generator(colors: list[str]):
 LASSO_COLOR = ["black"]
 BASELINE_COLORS = ["#56B4E9", "#009292", "#117733", "#490092", "#924900"]
 LLM_LASSO_COLORS = ["#DC267F", "#FE6100", "#FFB000"]
-# LLM_LASSO_COLORS = ["#FE6100", "#FFB000"]
 
 
 def plot_heatmap(
