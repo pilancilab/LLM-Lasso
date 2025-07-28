@@ -7,6 +7,6 @@ python scripts/llm_lasso_scores.py \
         --wipe \
         --save_dir data/llm-lasso/Lung_TCGA \
         --n-trials 3 \
-        --num-threads 5 \
+        --num-threads 1 \
         --batch-size 30 \
         --model-type o1 

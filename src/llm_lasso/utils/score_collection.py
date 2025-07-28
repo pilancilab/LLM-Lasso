@@ -121,16 +121,20 @@ def extract_scores_from_responses(responses, genenames, dict=False):
     """
     # Normalize gene names
     normalized_genenames = normalize_genenames(genenames)
+    # print(normalized_genenames)
     scores = {gene: None for gene in normalized_genenames}  # Initialize with None for all genes
     LARGE_NUMBER = 1e10  # Define a large number to replace infinity values
 
     for response in responses:
         # Updated regex pattern to allow spaces within gene names
         matches = re.findall(r"\*\*(.*?)\*\*:\s*(-?\d+(?:\.\d+)?|inf(?:inity)?|∞)", response, re.IGNORECASE)
+        if len(matches) == 0:
+            matches = re.findall(r"(.*?):\s*(-?\d+(?:\.\d+)?|inf(?:inity)?|∞)", response, re.IGNORECASE)
 
         for gene, score in matches:
             # Normalize gene name from response
             normalized_gene = gene.strip().replace('|', '').replace('/', '').replace('-', '').replace('.', '')
+            # print(gene, score, normalized_gene, normalized_gene in normalized_genenames)
 
             if normalized_gene in normalized_genenames:
                 if score.lower() in {"inf", "infinity", "∞"}:

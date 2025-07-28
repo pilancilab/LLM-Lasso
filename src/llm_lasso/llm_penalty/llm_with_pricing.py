@@ -49,19 +49,19 @@ OPENAI_PRICES = {
 }
 
 
-def get_pricing(model_provider):
+def get_pricing(model_provider,api_key=None):
     assert model_provider in ["openai", "openrouter"]
     if model_provider == "openai":
         return OPENAI_PRICES
     
     headers = {
-        "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"
+        "Authorization": f"Bearer {api_key}"
     }
 
     response = requests.get("https://openrouter.ai/api/v1/models", headers=headers)
 
     data = response.json()
-    pricing = {}
+    result = {}
     for model in data["data"]:
         pricing = model.get("pricing")
         pricing["prompt"] = float(pricing["prompt"])
@@ -70,8 +70,8 @@ def get_pricing(model_provider):
             "Input":  round(pricing["prompt"] if pricing["prompt"] > 0.001 else pricing["prompt"] * 1e6, 10),
             "Output":  round(pricing["completion"] if pricing["completion"] > 0.001 else pricing["completion"] * 1e6, 10)
         }
-        pricing[model["id"]] = pricing
-    return pricing
+        result[model["id"]] = pricing
+    return result
 
 
 def count_tokens(content, model: str):
@@ -107,7 +107,8 @@ class LLMQueryWithPricing(LLMQueryWrapperWithMemory):
         )
         self.llm_name = llm_name
         self.pricing_dict = get_pricing(
-            "openai" if llm_type in OPENAI_TYPES else "openrouter"
+            "openai" if llm_type in OPENAI_TYPES else "openrouter",
+            api_key
         )
     
     def structured_query(
@@ -142,7 +143,7 @@ class LLMQueryWithPricing(LLMQueryWrapperWithMemory):
 
         full_prompt = f"{self._maybe_get_memory()}\n\n{full_prompt}"
         input_tokens = count_tokens(full_prompt, self.llm_name)
-        output_tokens = count_tokens(result.model_dump_json(), self.llm_name)
+        output_tokens = count_tokens(result, self.llm_name)
         price = self.pricing_dict[self.llm_name]["Input"] * input_tokens / 1e6 + \
             self.pricing_dict[self.llm_name]["Output"] * output_tokens / 1e6
 

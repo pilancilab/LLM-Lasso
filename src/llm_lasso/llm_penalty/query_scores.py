@@ -19,7 +19,7 @@ def query_scores_with_retries(
     system_message: str,
     full_prompt: str,
     batch_features: list[str],
-    retry_limit=50
+    retry_limit=5
 ) -> tuple[list[int], str]:
     """
     Query an LLM for feature scores, with automatic retries.
@@ -27,14 +27,18 @@ def query_scores_with_retries(
     upper_batch_names = [n.upper() for n in batch_features]
 
     total_price = 0
+    # print(upper_batch_names)
     if model.has_structured_output():
-        gene_scores, price = model.structured_query(
-            system_message=system_message,
-            full_prompt=full_prompt,
-            response_format_class=GeneScores,
-            sleep_time=1,
-        )
-        print(gene_scores)
+        try:
+            gene_scores, price = model.structured_query(
+                system_message=system_message,
+                full_prompt=full_prompt,
+                response_format_class=GeneScores,
+                sleep_time=1,
+            )
+        except Exception as e:
+            print(e)
+            return
         total_price += price
 
         scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
@@ -80,6 +84,7 @@ def query_scores_with_retries(
             n_retries += 1
             try:
                 logging.warning(f"Batch scores count mismatch for genes {batch_features}. Retrying...")
+                print(batch_scores_partial)
                 output, price = model.retry_last(sleep_time=1)
                 total_price += price
                 batch_scores_partial = extract_scores_from_responses(
@@ -90,4 +95,5 @@ def query_scores_with_retries(
                 logging.error(f"Error during retry: {str(e)}. Continuing retry...")
         # end retry while loop
     # end structured output if/else
+    print("price: ", total_price)
     return batch_scores_partial, output, total_price
