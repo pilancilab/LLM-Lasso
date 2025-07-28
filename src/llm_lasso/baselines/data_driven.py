@@ -18,6 +18,7 @@ from sklearn.linear_model import LogisticRegression
 import random
 import json
 from llm_lasso.task_specific_lasso.utils import TrainTest
+from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 import numpy as np
 from lassonet import LassoNetClassifier, LassoNetRegressor
@@ -93,35 +94,40 @@ def random_feature_selector(X, k, random_state=42):
 # 5. LassoNet Feature Selector
 def lassonet_method(X: pd.DataFrame, y, n_features_to_select: int, task='classification'):
     """
-    Select features using LassoNet on preprocessed feature matrix.
+    Select features using LassoNet on provided training set.
 
     Args:
-        X (pd.DataFrame): Preprocessed features (e.g., standardized).
-        y (pd.Series or np.ndarray): Labels.
+        X (pd.DataFrame): Training features (already split).
+        y (pd.Series or np.ndarray): Training labels.
         n_features_to_select (int): Number of features to select.
         task (str): 'classification' or 'regression'.
 
     Returns:
-        X_selected (pd.DataFrame): Data with selected features.
+        X_selected (pd.DataFrame): Training data with selected features.
         selected_feature_names (List[str]): Names of selected features.
     """
-    # Choose model type
+    # Standardize features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Initialize appropriate model
     if task == 'classification':
         model = LassoNetClassifier(hidden_dims=(100,), verbose=0)
     else:
         model = LassoNetRegressor(hidden_dims=(100,), verbose=0)
 
-    # Fit model on preprocessed features
-    model.fit(X.values, y)
+    # Fit to full training set
+    model.fit(X_scaled, y)
 
-    # Get path point with feature count closest to target
+    # Find the model in the path with closest number of features to n_features_to_select
     closest = min(model.path_, key=lambda m: abs(np.sum(m.coef_ != 0) - n_features_to_select))
     selected_mask = closest.coef_ != 0
     selected_indices = np.where(selected_mask)[0]
     selected_feature_names = X.columns[selected_indices].tolist()
 
-    # Return reduced dataset
-    return X[selected_feature_names], selected_feature_names
+    # Subset X using selected features
+    X_selected = X[selected_feature_names]
+    return X_selected, selected_feature_names
 
 
 #################################### Main Feature Selection Function ##############################
