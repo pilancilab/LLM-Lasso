@@ -11,17 +11,16 @@ Supports four feature selection methods:
 """
 
 import os
-import argparse
 from tqdm import tqdm
 import pandas as pd
 from sklearn.feature_selection import mutual_info_regression, RFE
 from sklearn.linear_model import LogisticRegression
 import random
 import json
-from llm_lasso.data_splits import read_train_test_splits
 from llm_lasso.task_specific_lasso.utils import TrainTest
 import xgboost as xgb
 import numpy as np
+from lassonet import LassoNetClassifier, LassoNetRegressor
 
 ######################## Data-Driven Feature Selection Baselines ######################################
 
@@ -91,6 +90,39 @@ def random_feature_selector(X, k, random_state=42):
     selected_features = random.sample(list(X.columns), k)
     return X[selected_features], selected_features
 
+# 5. LassoNet Feature Selector
+def lassonet_method(X: pd.DataFrame, y, n_features_to_select: int, task='classification'):
+    """
+    Select features using LassoNet on preprocessed feature matrix.
+
+    Args:
+        X (pd.DataFrame): Preprocessed features (e.g., standardized).
+        y (pd.Series or np.ndarray): Labels.
+        n_features_to_select (int): Number of features to select.
+        task (str): 'classification' or 'regression'.
+
+    Returns:
+        X_selected (pd.DataFrame): Data with selected features.
+        selected_feature_names (List[str]): Names of selected features.
+    """
+    # Choose model type
+    if task == 'classification':
+        model = LassoNetClassifier(hidden_dims=(100,), verbose=0)
+    else:
+        model = LassoNetRegressor(hidden_dims=(100,), verbose=0)
+
+    # Fit model on preprocessed features
+    model.fit(X.values, y)
+
+    # Get path point with feature count closest to target
+    closest = min(model.path_, key=lambda m: abs(np.sum(m.coef_ != 0) - n_features_to_select))
+    selected_mask = closest.coef_ != 0
+    selected_indices = np.where(selected_mask)[0]
+    selected_feature_names = X.columns[selected_indices].tolist()
+
+    # Return reduced dataset
+    return X[selected_feature_names], selected_feature_names
+
 
 #################################### Main Feature Selection Function ##############################
 
@@ -119,6 +151,8 @@ def feature_selector(X, y, method, k, random_state=42):
         return random_feature_selector(X, k, random_state=random_state)
     elif method == 'xgboost':
         return xgboost(X, y, k)
+    elif method == 'lassonet':
+        return lassonet_method(X, y, n_features_to_select=k, task='classification' if len(y.unique()) <= 2 else 'regression')
     else:
         raise ValueError("Invalid method. Choose from 'mi', 'rfe', 'mrmr', 'random', 'xgboost'.")
 
@@ -138,7 +172,7 @@ def run_all_baselines(X, y, save_dir, min=0, max=161, step=160, random_state=42)
     - random_state (int): Random seed for reproducibility.
     """
     # Baseline methods
-    methods = ['mi', 'rfe', 'random', 'mrmr', 'xgboost']
+    methods = ['mi', 'rfe', 'random', 'mrmr', 'xgboost', 'lassonet']
 
     # Ensure the save directory exists
     os.makedirs(save_dir, exist_ok=True)
