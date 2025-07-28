@@ -91,8 +91,8 @@ if __name__ == "__main__":
         omim_api_key=constants.OMIM_KEYS[0],
         n_threads=args.num_threads,
         parallel=args.num_threads > 1,
-        preselection_done=preselection,
-        preselected_feature_names=preselected_feature_names,
+        # preselection_done=preselection,
+        # preselected_feature_names=preselected_feature_names,
         default_score=args.default_score
     )
     print(f'Total number of scores collected: {len(all_scores)}.')

@@ -10,6 +10,7 @@ import warnings
 import os
 import logging
 from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
+from llm_lasso.llm_penalty.llm_with_pricing import LLMQueryWithPricing
 from llm_lasso.utils.score_collection import create_general_prompt, \
     save_responses_to_file, save_scores_to_pkl
 from llm_lasso.utils.data import convert_pkl_to_txt
@@ -43,14 +44,14 @@ def penalties_helper(
     ]
 ):
     (full_prompt, model_args, batch_features) = args
-    model = LLMQueryWrapperWithMemory(*model_args)
+    model = LLMQueryWithPricing(*model_args)
     # Construct the prompt
     system_message = "For each feature input by the user, your task is to provide a feature importance score (between 0 and 1; larger value indicates greater importance) for predicting whether an individual will subscribe to a term deposit and a reasoning behind how the importance score was assigned."
 
 
     # Query the LLM, with special handling if the LLM allows
     # structured queries
-    batch_scores_partial, output = query_scores_with_retries(
+    batch_scores_partial, output, total_cost = query_scores_with_retries(
         model, system_message, full_prompt,
         batch_features
     )
@@ -58,7 +59,7 @@ def penalties_helper(
     print(".", end="")
     stdout.flush()
     logging.info(batch_scores_partial)
-    return (batch_scores_partial, output)
+    return (batch_scores_partial, output, total_cost)
 
 
 def query_scores(
@@ -88,6 +89,7 @@ def query_scores(
     - `n_trials`: Bumber of trials to average over.
     - `wipe`: Whether to wipe the save directory before getting scores.
     """
+    model = LLMQueryWithPricing(*model.get_config())
     if wipe:
         logging.info("Wiping save directory before starting.")
         wipe_save_dir(save_dir)
@@ -106,11 +108,11 @@ def query_scores(
 
     # Determine which trial to start from
     start_trial = len(trial_scores)
+    total_price = 0
     for trial in range(start_trial, n_trials):
         logging.info(f"Starting trial {trial + 1} out of {n_trials}")
         batch_scores = []
         
-
         if parallel:
              with Pool(n_threads) as p:
                 batch_scores = []
@@ -122,9 +124,10 @@ def query_scores(
                     ) for start_idx in range(0, total_features, batch_size)
                 ])
                 print()
-                for (sc, res) in outputs:
+                for (sc, res, price) in outputs:
                     batch_scores.extend(sc)
                     results.append(res)
+                    total_price += price
         else:
             for start_idx in tqdm(range(0, total_features, batch_size), desc=f'Processing trial {trial + 1}...'):
                 end_idx = min(start_idx + batch_size, total_features)
@@ -135,10 +138,11 @@ def query_scores(
 
                 # Query the LLM, with special handling if the LLM allows
                 # structured queries
-                batch_scores_partial, response = query_scores_with_retries(
+                batch_scores_partial, response, price = query_scores_with_retries(
                     model, system_message, prompt,
                     batch_features
                 )
+                total_price += price
 
                 logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
                 batch_scores.extend(batch_scores_partial)
@@ -176,6 +180,8 @@ def query_scores(
         raise ValueError(
             f"Mismatch between number of scores ({len(final_scores)}) and number of gene names ({len(feature_names)})."
         )
+    
+    print(f"TOTAL PRICE: {total_price}")
     return results, final_scores
 
 # Select top genes based on ranking of the importance scores

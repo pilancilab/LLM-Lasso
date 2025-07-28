@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from dataclasses import dataclass, field
 from langchain_community.vectorstores import Chroma
 from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
+from llm_lasso.llm_penalty.llm_with_pricing import LLMQueryWithPricing
 from llm_lasso.utils.score_collection import create_general_prompt, \
     save_responses_to_file, save_scores_to_pkl
 from llm_lasso.utils.data import convert_pkl_to_txt
@@ -91,7 +92,7 @@ def penalties_helper(
     ]
 ):
     (query, context, params, model_args, batch_features) = args
-    model = LLMQueryWrapperWithMemory(*model_args)
+    model = LLMQueryWithPricing(*model_args)
     # Construct the prompt
     if context != "":
         full_prompt = f"Using the following context, provide the most accurate and relevant answer to the question. " \
@@ -104,7 +105,7 @@ def penalties_helper(
 
     # Query the LLM, with special handling if the LLM allows
     # structured queries
-    batch_scores_partial, output = query_scores_with_retries(
+    batch_scores_partial, output, price = query_scores_with_retries(
         model, system_message, full_prompt,
         batch_features, params.retry_limit
     )
@@ -113,7 +114,7 @@ def penalties_helper(
     stdout.flush()
     logging.info(batch_scores_partial)
     model.maybe_add_to_memory(query, output)
-    return (batch_scores_partial, output)
+    return (batch_scores_partial, output, price)
 
 
 def collect_penalties(
@@ -127,7 +128,7 @@ def collect_penalties(
     omim_api_key: str = "",
     parallel = True,
     n_threads = 8,
-    preselected_feature_names = None,
+    # preselected_feature_names = None,
     default_score = 1
 ):
     """
@@ -147,20 +148,22 @@ def collect_penalties(
     - `omim_api_key`: OMIM API key, only needed if
         `params.summarized_gene_doc_rag` is True
     """
+    model = LLMQueryWithPricing(*model.get_config())
     if params.wipe:
         logging.info("Wiping save directory before starting.")
         print("Wiping save directory before starting.")
         wipe_llm_penalties(save_dir, params.has_rag())
     
-    preselection_done = preselected_feature_names is not None
-    total_features = len(preselected_feature_names[0]) if preselection_done else len(feature_names)
-    if preselection_done:
-        all_features = feature_names
-        feature_names = preselected_feature_names
-        print(f"Processing ~{total_features} features for {len(feature_names)} splits...")
-    else:
-        print(f"Processing {total_features} features...")
-        feature_names = [feature_names]
+    # preselection_done = preselected_feature_names is not None
+    # total_features = len(preselected_feature_names[0]) if preselection_done else len(feature_names)
+    total_features = len(feature_names)
+    # if preselection_done:
+    #     all_features = feature_names
+    #     feature_names = preselected_feature_names
+    #     print(f"Processing ~{total_features} features for {len(feature_names)} splits...")
+    # else:
+    print(f"Processing {total_features} features...")
+    feature_names = [feature_names]
     n_splits = len(feature_names)
 
     rag_or_plain = "RAG" if params.has_rag() else "plain"
@@ -182,6 +185,7 @@ def collect_penalties(
     results = []
     trial = start_trial
 
+    total_price = 0
     while trial < params.n_trials:
         # maybe shuffle the feature names
         idxs = [np.arange(len(feat)) for feat in feature_names]
@@ -228,9 +232,10 @@ def collect_penalties(
                 batch_scores_temp = []
                 outputs = p.map(penalties_helper, args)
                 print()
-                for (sc, res) in outputs:
+                for (sc, res, price) in outputs:
                     batch_scores_temp.extend(sc)
                     results.append(res)
+                    total_price += price
         else:
             for (context, query, _, _, batch_features) in tqdm(args, desc=f"LLM response: trial {trial + 1}..."):
                 # Construct the prompt
@@ -245,10 +250,11 @@ def collect_penalties(
 
                 # Query the LLM, with special handling if the LLM allows
                 # structured queries
-                batch_scores_partial, output = query_scores_with_retries(
+                batch_scores_partial, output, price = query_scores_with_retries(
                     model, system_message, full_prompt,
                     batch_features, params.retry_limit
                 )
+                total_price += price
 
                 logging.info(f"Successfully retrieved valid scores for batch: {batch_features}")
                 batch_scores_temp.extend(batch_scores_partial)
@@ -322,5 +328,7 @@ def collect_penalties(
 
     print(f"Results saved to {results_file}")
     print(f"Scores saved to {scores_pkl_file} and {scores_txt_file}")
+
+    print(f"TOTAL PRICE: {total_price}")
 
     return results, final_scores

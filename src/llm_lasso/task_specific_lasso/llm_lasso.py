@@ -158,6 +158,8 @@ def run_lasso_baseline_for_splits(
 def run_adaptive_lasso_for_splits(
     splits: list[TrainTest],
     config: LLMLassoExperimentConfig,
+    weights: np.array = None,
+    model_name: str = None
 ):
     """
     [LLM-LASSO TOP-LEVEL EXPERIMENT]
@@ -169,23 +171,28 @@ def run_adaptive_lasso_for_splits(
     Parameters:
     - splits: list of training and test splits, as TrainTest objects
     - config: `LLMLassoExperimentConfig` object
+    - weights: manually pass in weights instead of using the adaptive lasso heuristic
 
     Returns: DataFrame with test error, AUROC, selected features, and other
         metadata for each split. 
     """
-    model_name = config.model_name if config.model_name is not None else "Adaptive_Lasso"
+    model_name = (config.model_name or model_name) \
+        if (config.model_name or model_name) \
+            else "Adaptive_Lasso"
     all_results = None
+    compute_weights = weights is None
     for split_idx in tqdm(range(len(splits))):
-        weights = run_l2_regression(
-            train_test=splits[split_idx],
-            features=splits[split_idx].x_train.columns,
-            model_name=model_name,
-            regression=config.regression,
-            folds_cv=config.folds_cv,
-            seed=config.seed,
-            n_threads=config.n_threads
-        )[[f"{feat}_Magnitude" for feat in splits[split_idx].x_train.columns]].to_numpy()[0, :]
-        weights += weights.max() * config.adaptive_lasso_relative_imp_base
+        if compute_weights:
+            weights = run_l2_regression(
+                train_test=splits[split_idx],
+                features=splits[split_idx].x_train.columns,
+                model_name=model_name,
+                regression=config.regression,
+                folds_cv=config.folds_cv,
+                seed=config.seed,
+                n_threads=config.n_threads
+            )[[f"{feat}_Magnitude" for feat in splits[split_idx].x_train.columns]].to_numpy()[0, :]
+            weights += weights.max() * config.adaptive_lasso_relative_imp_base
 
         if config.score_type == PenaltyType.PF:
             weights = 1/weights

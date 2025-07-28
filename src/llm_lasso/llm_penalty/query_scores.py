@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from llm_lasso.llm_penalty.llm import LLMQueryWrapperWithMemory
+from llm_lasso.llm_penalty.llm_with_pricing import LLMQueryWithPricing
 from llm_lasso.utils.score_collection import extract_scores_from_responses
 import logging
 
@@ -14,7 +15,7 @@ class GeneScores(BaseModel):
 
 
 def query_scores_with_retries(
-    model: LLMQueryWrapperWithMemory,
+    model: LLMQueryWithPricing,
     system_message: str,
     full_prompt: str,
     batch_features: list[str],
@@ -25,13 +26,17 @@ def query_scores_with_retries(
     """
     upper_batch_names = [n.upper() for n in batch_features]
 
+    total_price = 0
     if model.has_structured_output():
-        gene_scores: GeneScores = model.structured_query(
+        gene_scores, price = model.structured_query(
             system_message=system_message,
             full_prompt=full_prompt,
             response_format_class=GeneScores,
             sleep_time=1,
         )
+        print(gene_scores)
+        total_price += price
+
         scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
         features_retrieved = set([score.gene.upper() for score in scores_list])
         missing = set(upper_batch_names).difference(features_retrieved)
@@ -43,7 +48,8 @@ def query_scores_with_retries(
             assert n_retries < retry_limit
             n_retries += 1
 
-            gene_scores: GeneScores = model.retry_last(sleep_time=1)
+            gene_scores, price = model.retry_last(sleep_time=1)
+            total_price += price
             scores_list = [score for score in gene_scores.scores if score.gene.upper() in upper_batch_names]
             features_retrieved = set([score.gene.upper() for score in scores_list])
             missing = set(upper_batch_names).difference(features_retrieved)
@@ -54,11 +60,12 @@ def query_scores_with_retries(
         batch_scores_partial = [genes_to_scores[feature] for feature in batch_features]
         output = gene_scores.model_dump_json()
     else:
-        output = model.query(
+        output, price = model.query(
             system_message=system_message,
             full_prompt=full_prompt,
             sleep_time=1,
         )
+        total_price += price
 
         batch_scores_partial = extract_scores_from_responses(
             output if isinstance(output, list) else [output],
@@ -73,7 +80,8 @@ def query_scores_with_retries(
             n_retries += 1
             try:
                 logging.warning(f"Batch scores count mismatch for genes {batch_features}. Retrying...")
-                output = model.retry_last(sleep_time=1)
+                output, price = model.retry_last(sleep_time=1)
+                total_price += price
                 batch_scores_partial = extract_scores_from_responses(
                     output if isinstance(output, list) else [output],
                     batch_features
@@ -82,4 +90,4 @@ def query_scores_with_retries(
                 logging.error(f"Error during retry: {str(e)}. Continuing retry...")
         # end retry while loop
     # end structured output if/else
-    return batch_scores_partial, output
+    return batch_scores_partial, output, total_price

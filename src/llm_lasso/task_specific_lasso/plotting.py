@@ -294,5 +294,40 @@ def plot_llm_lasso_result(
                 plt.title(f"LLM-LASSO Performance ({n_splits} Splits)\n", fontdict={"size": 40})
             else:
                 plt.title(f"LLM-LASSO Performance ({task}, {n_splits} Splits)\n", fontdict={"size": 40})
+    return filtered_data
 
         
+def tabulate_plotting_data(
+    plotting_data: pd.DataFrame,
+    x_lim: int = 30
+):
+    pivot_df = plotting_data[plotting_data['n_features'] <= x_lim].pivot(
+        index='method_model', columns='n_features', values='mean_metric'
+    )
+    # Format to 2 decimal places
+    formatted = pivot_df.copy().map(lambda x: f"{x:.4f}")
+
+    # Bold the lowest value(s) per column
+    for col in formatted.columns:
+        min_val = pivot_df[col].min()
+        formatted[col] = formatted[col].where(pivot_df[col] != min_val,
+                                            '**' + formatted[col] + '**')
+
+    # Reorder rows
+    ours_methods = ["RAG LLM-Lasso (Ours)", "Plain LLM-Lasso (Ours)"]
+    rag = formatted.loc[formatted.index.isin(["RAG LLM-Lasso (Ours)"])]
+    plain = formatted.loc[formatted.index.isin(["Plain LLM-Lasso (Ours)"])]
+    others_df = formatted.loc[~formatted.index.isin(ours_methods)]
+
+    # Optional: sort others alphabetically
+    others_df = others_df.sort_index()
+
+    # Concatenate with a "divider" row
+    divider = pd.DataFrame([["---"] * len(formatted.columns)], 
+                        index=["---"], 
+                        columns=formatted.columns)
+
+    final_df = pd.concat([rag, plain, divider, others_df])
+
+    # Output markdown
+    print(final_df.to_markdown())
