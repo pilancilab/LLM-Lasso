@@ -15,7 +15,7 @@
 
 """Sparse MLP Model."""
 
-from sequential_attention.experiments.models.mlp import MLPModel
+from llm_lasso.baselines.sequential_attention.sequential_attention.experiments.models.mlp import MLPModel
 import tensorflow as tf
 
 

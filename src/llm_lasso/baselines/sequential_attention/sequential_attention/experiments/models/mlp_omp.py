@@ -15,8 +15,8 @@
 
 """Feature selection with Orthogonal Matching Pursuit."""
 
-from sequential_attention.benchmarks.orthogonal_matching_pursuit import OrthogonalMatchingPursuit
-from sequential_attention.experiments.models.mlp import MLPModel
+from llm_lasso.baselines.sequential_attentionsequential_attention.benchmarks.orthogonal_matching_pursuit import OrthogonalMatchingPursuit
+from llm_lasso.baselines.sequential_attentionsequential_attention.experiments.models.mlp import MLPModel
 import tensorflow as tf
 
 

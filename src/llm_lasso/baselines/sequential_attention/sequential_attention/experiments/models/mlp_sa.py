@@ -15,8 +15,8 @@
 
 """Feature selection with Sequential Attention."""
 
-from sequential_attention.experiments.models.mlp import MLPModel
-from sequential_attention.sequential_attention import SequentialAttention
+from llm_lasso.baselines.sequential_attention.sequential_attention.experiments.models.mlp import MLPModel
+from llm_lasso.baselines.sequential_attention.sequential_attention.sequential_attention import SequentialAttention
 import tensorflow as tf
 
 

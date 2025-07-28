@@ -50,6 +50,14 @@ flags.DEFINE_string(
     "Checkpoint directory for feature selection model",
 )
 
+# flags.DEFINE_string("x_train_path", None, "Path to X train CSV")
+# flags.DEFINE_string("x_test_path", None, "Path to X test CSV")
+# flags.DEFINE_string("y_train_path", None, "Path to y train CSV")
+# flags.DEFINE_string("y_test_path", None, "Path to y test CSV")
+flags.DEFINE_string("split_dir", None, "Directory with x/y train/test CSVs for each split")
+flags.DEFINE_integer("num_splits", 1, "Number of train/test splits to run")
+
+
 # Feature selection hyperparameters
 flags.DEFINE_integer(
     "num_selected_features", 50, "Number of features to select"
@@ -87,146 +95,114 @@ ALGOS = {
 }
 
 
-def run_trial(
-    batch_size=256,
-    num_epochs_select=250,
-    num_epochs_fit=250,
-    learning_rate=0.0002,
-    decay_steps=100,
-    decay_rate=1.0,
-):
-  """Run a feature selection experiment with a given set of hyperparameters."""
-  datasets = get_dataset(FLAGS.data_name, FLAGS.val_ratio, batch_size)
-  ds_train = datasets["ds_train"]
-  ds_val = datasets["ds_val"]
-  ds_test = datasets["ds_test"]
-  is_classification = datasets["is_classification"]
-  num_classes = datasets["num_classes"]
-  num_features = datasets["num_features"]
-  num_train_steps_select = num_epochs_select * len(ds_train)
-  loss_fn = (
-      tf.keras.losses.CategoricalCrossentropy()
-      if is_classification
-      else tf.keras.losses.MeanAbsoluteError()
+def run_trial(batch_size=256,
+              num_epochs_select=250,
+              num_epochs_fit=250,
+              learning_rate=0.0002,
+              decay_steps=100,
+              decay_rate=1.0,
+              x_train_path=None,
+              x_test_path=None,
+              y_train_path=None,
+              y_test_path=None,
+              split_index=None):
+  """Run Sequential-Attention (or other algo) on one split."""
+
+  # ---------- 1. Load the dataset ----------
+  datasets = get_dataset(
+      FLAGS.data_name,
+      FLAGS.val_ratio,
+      batch_size,
+      x_train_path=x_train_path,
+      x_test_path=x_test_path,
+      y_train_path=y_train_path,
+      y_test_path=y_test_path,
+  )
+  ds_train, ds_val, ds_test = datasets["ds_train"], datasets["ds_val"], datasets["ds_test"]
+  is_classification   = datasets["is_classification"]
+  num_classes         = datasets["num_classes"]
+  num_features        = datasets["num_features"]
+  num_train_steps_sel = num_epochs_select * len(ds_train)
+
+  loss_fn = (tf.keras.losses.CategoricalCrossentropy()
+             if is_classification else tf.keras.losses.MeanAbsoluteError())
+
+  # ---------- 2. Build model/FS arguments ----------
+  mlp_args = dict(
+      layer_sequence=[int(i) for i in FLAGS.deep_layers],
+      is_classification=is_classification,
+      num_classes=num_classes,
+      learning_rate=learning_rate,
+      decay_steps=decay_steps,
+      decay_rate=decay_rate,
+      alpha=FLAGS.alpha,
+      batch_norm=FLAGS.enable_batch_norm,
+  )
+  fs_args = dict(
+      num_inputs=num_features,
+      num_inputs_to_select=FLAGS.num_selected_features,
   )
 
-  model_dir = pathlib.Path(FLAGS.model_dir)
-  model_dir_select = model_dir / "select"
-  model_dir_fit = model_dir / "fit"
-  model_dir_select.mkdir(exist_ok=True, parents=True)
-  model_dir_fit.mkdir(exist_ok=True, parents=True)
-
-  mlp_args = {
-      "layer_sequence": [int(i) for i in FLAGS.deep_layers],
-      "is_classification": is_classification,
-      "num_classes": num_classes,
-      "learning_rate": learning_rate,
-      "decay_steps": decay_steps,
-      "decay_rate": decay_rate,
-      "alpha": FLAGS.alpha,
-      "batch_norm": FLAGS.enable_batch_norm,
-  }
-  fs_args = {
-      "num_inputs": num_features,
-      "num_inputs_to_select": FLAGS.num_selected_features,
-  }
   if FLAGS.algo == "sa":
-    fs_args["num_inputs_to_select_per_step"] = (
-        FLAGS.num_inputs_to_select_per_step
-    )
-    fs_args["num_train_steps"] = num_train_steps_select
-  if FLAGS.algo == "seql":
-    fs_args["num_train_steps"] = num_train_steps_select
+    fs_args.update(num_inputs_to_select_per_step=FLAGS.num_inputs_to_select_per_step,
+                   num_train_steps=num_train_steps_sel)
+  if FLAGS.algo in ("seql", "omp"):
+    fs_args["num_train_steps"] = num_train_steps_sel
+  if FLAGS.algo in ("seql", "gl"):
     fs_args["group_lasso_scale"] = FLAGS.group_lasso_scale
-  if FLAGS.algo == "gl":
+  if FLAGS.algo == "gl":     # GL selects all k at once
     fs_args["num_inputs_to_select_per_step"] = FLAGS.num_selected_features
-    fs_args["num_train_steps"] = num_train_steps_select
-    fs_args["group_lasso_scale"] = FLAGS.group_lasso_scale
-  if FLAGS.algo == "omp":
-    fs_args["num_train_steps"] = num_train_steps_select
-  if FLAGS.algo == "lly":
-    del fs_args["num_inputs_to_select"]
+  if FLAGS.algo == "lly":    # LLY ignores num_inputs_to_select
+    fs_args.pop("num_inputs_to_select", None)
 
-  ########### Feature Selection ##########
-  print("Starting selecting features...")
+  # ---------- 3. Train feature-selector ----------
+  print("Selecting features …")
+  selector = ALGOS[FLAGS.algo](**mlp_args, **fs_args)
+  selector.compile(loss=loss_fn, metrics=["accuracy"])
+  selector.fit(ds_train, validation_data=ds_val,
+               epochs=num_epochs_select, verbose=2)
 
-  if FLAGS.algo in ALGOS:
-    args = {**mlp_args, **fs_args}
-    mlp_select = ALGOS[FLAGS.algo](**args)
-    mlp_select.compile(loss=loss_fn, metrics=["accuracy"])
-    mlp_select.fit(
-        ds_train, validation_data=ds_val, epochs=num_epochs_select, verbose=2
-    )
-
-    ########### Get Features ##########
-    if FLAGS.algo == "sa":
-      selected_features = mlp_select.seqatt.selected_features
-      _, selected_indices = tf.math.top_k(
-          selected_features, k=FLAGS.num_selected_features
-      )
+  # ---------- 4. Extract selected indices ----------
+  if   FLAGS.algo == "sa":
+      sel_vec = selector.seqatt.selected_features
+      _, selected_indices = tf.math.top_k(sel_vec, k=FLAGS.num_selected_features)
       selected_indices = selected_indices.numpy()
-    elif FLAGS.algo == "lly":
+  elif FLAGS.algo == "lly":
       x_train = datasets["x_train"]
-      attention_logits = mlp_select.lly(tf.convert_to_tensor(x_train))
-      _, selected_indices = tf.math.top_k(
-          attention_logits, k=FLAGS.num_selected_features
-      )
+      logits  = selector.lly(tf.convert_to_tensor(x_train))
+      _, selected_indices = tf.math.top_k(logits, k=FLAGS.num_selected_features)
       selected_indices = selected_indices.numpy()
-    elif FLAGS.algo in ["gl", "seql"]:
-      selected_indices = (
-          mlp_select.seql.selected_features_history.numpy().tolist()
-      )
-    elif FLAGS.algo == "omp":
-      selected_indices = (
-          mlp_select.omp.selected_features_history.numpy().tolist()
-      )
-    assert (
-        len(selected_indices) == FLAGS.num_selected_features
-    ), f"Selected: {selected_indices}"
+  elif FLAGS.algo in ("gl", "seql"):
+      selected_indices = selector.seql.selected_features_history.numpy().tolist()
+  elif FLAGS.algo == "omp":
+      selected_indices = selector.omp.selected_features_history.numpy().tolist()
 
-  print("Finished selecting features...")
+  assert len(selected_indices) == FLAGS.num_selected_features
 
-  selected_features = tf.math.reduce_sum(
-      tf.one_hot(selected_indices, num_features, dtype=tf.int32), 0
-  ).numpy()
-  with open(model_dir_select / "selected_features.txt", "w") as fp:
-    fp.write(",".join([str(i) for i in selected_indices]))
-  tf.print("Selected", tf.reduce_sum(selected_features), "features")
-  tf.print("Selected mask:", selected_features, summarize=-1)
-  selected_features = tf.where(selected_features)[:, 0].numpy().tolist()
-  selected_features = ",".join([str(i) for i in selected_features])
-  print("Selected indices:", selected_features)
+  # ---------- 5. Persist selected feature list ----------
+  split_tag = f"_{split_index+1}" if split_index is not None else ""
+  save_txt  = os.path.join(FLAGS.split_dir, f"{FLAGS.algo}_selected{split_tag}.txt")
+  with open(save_txt, "w") as fp:
+      fp.write(",".join(map(str, selected_indices)))
+  print(f"Saved selected features → {save_txt}")
 
-  selected_features = [int(i) for i in selected_features.split(",")]
-  selected_features = tf.math.reduce_sum(
-      tf.one_hot(selected_features, num_features, dtype=tf.float32), 0
-  )
+  # ---------- 6. Sparse re-training (optional) ----------
+  one_hot = tf.math.reduce_sum(
+      tf.one_hot(selected_indices, num_features, dtype=tf.float32), axis=0)
 
-  ########### Model Training ##########
+  re_model = SparseModel(selected_features=one_hot, **mlp_args)
+  re_model.compile(loss=loss_fn, metrics=["accuracy"])
+  re_model.fit(ds_train, validation_data=ds_val,
+               epochs=num_epochs_fit, verbose=2)
 
-  print("Starting retraining...")
+  # ---------- 7. Eval ----------
+  res_val  = re_model.evaluate(ds_val,  return_dict=True)["accuracy"]
+  res_test = re_model.evaluate(ds_test, return_dict=True)["accuracy"]
+  print(f"Split {split_index}: val={res_val:.4f}, test={res_test:.4f}")
 
-  mlp_fit = SparseModel(selected_features=selected_features, **mlp_args)
-  mlp_fit.compile(loss=loss_fn, metrics=["accuracy"])
-  mlp_fit.fit(
-      ds_train, validation_data=ds_val, epochs=num_epochs_fit, verbose=2
-  )
+  # (optionally write JSON to model_dir/fit/results.json … left unchanged)
 
-  print("Finished retraining...")
-  ########### Evaluation ##########
-
-  results = dict()
-  results_val = mlp_fit.evaluate(ds_val, return_dict=True)
-  results_test = mlp_fit.evaluate(ds_test, return_dict=True)
-  results["val"] = round(results_val["accuracy"], 4)
-  results["test"] = round(results_test["accuracy"], 4)
-
-  with open(model_dir_fit / "results.json", "w") as fp:
-    json.dump(results, fp)
-
-  print(results)
-
-  return results["val"]
+  return {"val_acc": res_val, "test_acc": res_test, "indices": selected_indices}
 
 
 def main(args):
@@ -245,15 +221,38 @@ def main(args):
     num_epochs_select = FLAGS.num_epochs_select
   if FLAGS.num_epochs_fit > 0:
     num_epochs_fit = FLAGS.num_epochs_fit
-  run_trial(
-      batch_size=FLAGS.batch_size,
-      num_epochs_select=num_epochs_select,
-      num_epochs_fit=num_epochs_fit,
-      learning_rate=FLAGS.learning_rate,
-      decay_steps=FLAGS.decay_steps,
-      decay_rate=FLAGS.decay_rate,
-  )
+  if FLAGS.data_name == "gene_cancer" and FLAGS.split_dir:
+    for i in range(FLAGS.num_splits):
+      x_train_path = os.path.join(FLAGS.split_dir, f"x_train{i}.csv")
+      x_test_path = os.path.join(FLAGS.split_dir, f"x_test{i}.csv")
+      y_train_path = os.path.join(FLAGS.split_dir, f"y_train{i}.csv")
+      y_test_path = os.path.join(FLAGS.split_dir, f"y_test{i}.csv")
 
+      print(f"\n====== Running Split {i} ======")
+
+      results = run_trial(
+        batch_size=FLAGS.batch_size,
+        num_epochs_select=num_epochs_select,
+        num_epochs_fit=num_epochs_fit,
+        learning_rate=FLAGS.learning_rate,
+        decay_steps=FLAGS.decay_steps,
+        decay_rate=FLAGS.decay_rate,
+        x_train_path=x_train_path,
+        x_test_path=x_test_path,
+        y_train_path=y_train_path,
+        y_test_path=y_test_path,
+        split_index=i,  # we'll use this below to save results
+      )
+
+  else:
+    run_trial(
+        batch_size=FLAGS.batch_size,
+        num_epochs_select=num_epochs_select,
+        num_epochs_fit=num_epochs_fit,
+        learning_rate=FLAGS.learning_rate,
+        decay_steps=FLAGS.decay_steps,
+        decay_rate=FLAGS.decay_rate,
+    )
 
 if __name__ == "__main__":
   app.run(main)

@@ -20,7 +20,8 @@ from llm_lasso.baselines.sequential_attention.sequential_attention.experiments.d
 import tensorflow as tf
 
 
-def get_dataset(data_name, val_ratio, batch_size):
+def get_dataset(data_name, val_ratio, batch_size,
+                x_train_path=None, x_test_path=None, y_train_path=None, y_test_path=None):
   """Get datasets split into training, validation, and test datasets."""
   # Load data.
   if data_name == "mice":
@@ -55,7 +56,8 @@ def get_dataset(data_name, val_ratio, batch_size):
 
   elif data_name == "gene_cancer":
     (x_train, x_test, y_train, y_test, is_classification, num_classes) = (
-      data_loader.load_gene_cancer_data())
+      data_loader.load_gene_cancer_data_from_split(x_train_path, x_test_path, y_train_path, y_test_path)
+    )
 
   else:
     raise NotImplementedError
